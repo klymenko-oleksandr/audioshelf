@@ -5,6 +5,7 @@ import { Book, BookProgress } from "@/lib/types";
 import { BookList } from "./book-list";
 import { AudioPlayerBar } from "./audio-player-bar";
 import { getSessionId } from "@/lib/session";
+import packageJson from "@/package.json";
 
 export function HomePage() {
   const [books, setBooks] = useState<Book[]>([]);
@@ -99,6 +100,10 @@ export function HomePage() {
         onClose={handleClosePlayer}
         onProgressUpdate={handleProgressUpdate}
       />
+
+      <footer className="fixed bottom-0 right-0 p-2 text-xs text-muted-foreground/50">
+        v{packageJson.version}
+      </footer>
     </div>
   );
 }
