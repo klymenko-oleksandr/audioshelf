@@ -6,6 +6,7 @@ import { BookList } from "./book-list";
 import { AudioPlayerBar } from "./audio-player-bar";
 import { getSessionId } from "@/lib/session";
 import packageJson from "@/package.json";
+import { ThemeToggle } from "./theme-toggle";
 
 export function HomePage() {
   const [books, setBooks] = useState<Book[]>([]);
@@ -67,9 +68,12 @@ export function HomePage() {
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b">
-        <div className="max-w-screen-xl mx-auto px-4 py-6">
-          <h1 className="text-2xl font-bold">Audio Shelf</h1>
-          <p className="text-muted-foreground">Your audiobook library</p>
+        <div className="max-w-screen-xl mx-auto px-4 py-6 flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold">Audio Shelf</h1>
+            <p className="text-muted-foreground">Your audiobook library</p>
+          </div>
+          <ThemeToggle />
         </div>
       </header>
 
