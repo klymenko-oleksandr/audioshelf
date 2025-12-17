@@ -1,16 +1,18 @@
 "use client";
 
-import { useRef, useState, useEffect } from "react";
+import { useRef, useState, useEffect, useCallback } from "react";
 import { Book } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Play, Pause, X, Volume2, VolumeX } from "lucide-react";
+import { getSessionId } from "@/lib/session";
 
 interface AudioPlayerBarProps {
   book: Book | null;
   onClose: () => void;
+  onProgressUpdate?: () => void;
 }
 
-export function AudioPlayerBar({ book, onClose }: AudioPlayerBarProps) {
+export function AudioPlayerBar({ book, onClose, onProgressUpdate }: AudioPlayerBarProps) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -19,6 +21,25 @@ export function AudioPlayerBar({ book, onClose }: AudioPlayerBarProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [muted, setMuted] = useState(false);
+  const [initialPosition, setInitialPosition] = useState<number | null>(null);
+  const lastSaveRef = useRef<number>(0);
+
+  const saveProgress = useCallback(async (position: number, dur: number) => {
+    if (!book) return;
+    const sessionId = getSessionId();
+    if (!sessionId) return;
+
+    try {
+      await fetch(`/api/books/${book.id}/progress`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessionId, position, duration: dur }),
+      });
+      onProgressUpdate?.();
+    } catch (err) {
+      console.error("Failed to save progress:", err);
+    }
+  }, [book, onProgressUpdate]);
 
   useEffect(() => {
     if (!book) {
@@ -26,19 +47,34 @@ export function AudioPlayerBar({ book, onClose }: AudioPlayerBarProps) {
       setIsPlaying(false);
       setCurrentTime(0);
       setDuration(0);
+      setInitialPosition(null);
       return;
     }
 
-    const fetchPlayUrl = async () => {
+    const fetchPlayUrlAndProgress = async () => {
       setLoading(true);
       setError(null);
       try {
-        const res = await fetch(`/api/books/${book.id}/play-url`, {
-          method: "POST",
-        });
-        if (!res.ok) throw new Error("Failed to get play URL");
-        const data = await res.json();
-        setAudioUrl(data.playUrl);
+        const sessionId = getSessionId();
+        
+        const [playRes, progressRes] = await Promise.all([
+          fetch(`/api/books/${book.id}/play-url`, { method: "POST" }),
+          sessionId 
+            ? fetch(`/api/books/${book.id}/progress?sessionId=${sessionId}`)
+            : Promise.resolve(null),
+        ]);
+
+        if (!playRes.ok) throw new Error("Failed to get play URL");
+        const playData = await playRes.json();
+        setAudioUrl(playData.playUrl);
+
+        if (progressRes?.ok) {
+          const progressData = await progressRes.json();
+          if (progressData.position > 0) {
+            setInitialPosition(progressData.position);
+            setCurrentTime(progressData.position);
+          }
+        }
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to load audio");
       } finally {
@@ -46,15 +82,18 @@ export function AudioPlayerBar({ book, onClose }: AudioPlayerBarProps) {
       }
     };
 
-    fetchPlayUrl();
+    fetchPlayUrlAndProgress();
   }, [book]);
 
   useEffect(() => {
     if (audioUrl && audioRef.current) {
+      if (initialPosition !== null && initialPosition > 0) {
+        audioRef.current.currentTime = initialPosition;
+      }
       audioRef.current.play();
       setIsPlaying(true);
     }
-  }, [audioUrl]);
+  }, [audioUrl, initialPosition]);
 
   const togglePlay = () => {
     if (!audioRef.current) return;
@@ -68,7 +107,15 @@ export function AudioPlayerBar({ book, onClose }: AudioPlayerBarProps) {
 
   const handleTimeUpdate = () => {
     if (audioRef.current) {
-      setCurrentTime(audioRef.current.currentTime);
+      const time = audioRef.current.currentTime;
+      const dur = audioRef.current.duration;
+      setCurrentTime(time);
+
+      const now = Date.now();
+      if (now - lastSaveRef.current > 10000) {
+        lastSaveRef.current = now;
+        saveProgress(time, dur);
+      }
     }
   };
 
@@ -182,7 +229,17 @@ export function AudioPlayerBar({ book, onClose }: AudioPlayerBarProps) {
             src={audioUrl}
             onTimeUpdate={handleTimeUpdate}
             onLoadedMetadata={handleLoadedMetadata}
-            onEnded={() => setIsPlaying(false)}
+            onEnded={() => {
+            setIsPlaying(false);
+            if (audioRef.current) {
+              saveProgress(audioRef.current.duration, audioRef.current.duration);
+            }
+          }}
+          onPause={() => {
+            if (audioRef.current) {
+              saveProgress(audioRef.current.currentTime, audioRef.current.duration);
+            }
+          }}
             muted={muted}
           />
         )}

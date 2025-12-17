@@ -3,6 +3,11 @@ export interface AudioAsset {
   mimeType: string;
 }
 
+export interface BookProgress {
+  position: number;
+  duration: number;
+}
+
 export interface Book {
   id: string;
   title: string;
@@ -10,4 +15,5 @@ export interface Book {
   coverUrl: string | null;
   createdAt: string;
   audio: AudioAsset | null;
+  progress?: BookProgress;
 }

@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { Book } from "@/lib/types";
+import { useState, useEffect, useCallback } from "react";
+import { Book, BookProgress } from "@/lib/types";
 import { BookList } from "./book-list";
 import { AudioPlayerBar } from "./audio-player-bar";
+import { getSessionId } from "@/lib/session";
 
 export function HomePage() {
   const [books, setBooks] = useState<Book[]>([]);
@@ -11,22 +12,44 @@ export function HomePage() {
   const [error, setError] = useState<string | null>(null);
   const [currentBook, setCurrentBook] = useState<Book | null>(null);
 
-  useEffect(() => {
-    const fetchBooks = async () => {
-      try {
-        const res = await fetch("/api/books");
-        if (!res.ok) throw new Error("Failed to fetch books");
-        const data = await res.json();
-        setBooks(data);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to load books");
-      } finally {
-        setLoading(false);
-      }
-    };
+  const fetchBooksWithProgress = useCallback(async () => {
+    try {
+      const res = await fetch("/api/books");
+      if (!res.ok) throw new Error("Failed to fetch books");
+      const booksData: Book[] = await res.json();
 
-    fetchBooks();
+      const sessionId = getSessionId();
+      if (sessionId) {
+        const progressPromises = booksData.map(async (book) => {
+          try {
+            const progressRes = await fetch(
+              `/api/books/${book.id}/progress?sessionId=${sessionId}`
+            );
+            if (progressRes.ok) {
+              const progress: BookProgress = await progressRes.json();
+              return { ...book, progress };
+            }
+          } catch {
+            // Ignore progress fetch errors
+          }
+          return book;
+        });
+
+        const booksWithProgress = await Promise.all(progressPromises);
+        setBooks(booksWithProgress);
+      } else {
+        setBooks(booksData);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load books");
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    fetchBooksWithProgress();
+  }, [fetchBooksWithProgress]);
 
   const handlePlay = (book: Book) => {
     setCurrentBook(book);
@@ -34,6 +57,10 @@ export function HomePage() {
 
   const handleClosePlayer = () => {
     setCurrentBook(null);
+  };
+
+  const handleProgressUpdate = () => {
+    fetchBooksWithProgress();
   };
 
   return (
@@ -67,7 +94,11 @@ export function HomePage() {
         )}
       </main>
 
-      <AudioPlayerBar book={currentBook} onClose={handleClosePlayer} />
+      <AudioPlayerBar 
+        book={currentBook} 
+        onClose={handleClosePlayer}
+        onProgressUpdate={handleProgressUpdate}
+      />
     </div>
   );
 }

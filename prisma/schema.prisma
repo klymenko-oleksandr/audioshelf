@@ -14,12 +14,13 @@ datasource db {
 }
 
 model Book {
-  id        String       @id @default(cuid())
+  id        String             @id @default(cuid())
   title     String
   author    String
   coverUrl  String?
-  createdAt DateTime     @default(now())
+  createdAt DateTime           @default(now())
   audio     AudioAsset?
+  progress  PlaybackProgress[]
 }
 
 model AudioAsset {
@@ -29,4 +30,17 @@ model AudioAsset {
   mimeType  String
   createdAt DateTime @default(now())
   book      Book     @relation(fields: [bookId], references: [id], onDelete: Cascade)
+}
+
+model PlaybackProgress {
+  id        String   @id @default(cuid())
+  sessionId String
+  bookId    String
+  position  Float    @default(0)
+  duration  Float    @default(0)
+  updatedAt DateTime @updatedAt
+  book      Book     @relation(fields: [bookId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionId, bookId])
+  @@index([sessionId])
 }
