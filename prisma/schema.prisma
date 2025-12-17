@@ -1,0 +1,32 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Book {
+  id        String       @id @default(cuid())
+  title     String
+  author    String
+  coverUrl  String?
+  createdAt DateTime     @default(now())
+  audio     AudioAsset?
+}
+
+model AudioAsset {
+  id        String   @id @default(cuid())
+  bookId    String   @unique
+  objectKey String
+  mimeType  String
+  createdAt DateTime @default(now())
+  book      Book     @relation(fields: [bookId], references: [id], onDelete: Cascade)
+}
