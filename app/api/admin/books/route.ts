@@ -14,22 +14,31 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { title, author, coverUrl, objectKey, mimeType } = parsed.data;
+    const { title, author, coverUrl, chapters } = parsed.data;
+
+    // Calculate total duration from all chapters
+    const totalDuration = chapters.reduce((sum, ch) => sum + ch.duration, 0);
 
     const book = await db.book.create({
       data: {
         title,
         author,
         coverUrl,
-        audio: {
-          create: {
-            objectKey,
-            mimeType,
-          },
+        totalDuration,
+        chapters: {
+          create: chapters.map((ch) => ({
+            title: ch.title,
+            order: ch.order,
+            objectKey: ch.objectKey,
+            mimeType: ch.mimeType,
+            duration: ch.duration,
+          })),
         },
       },
       include: {
-        audio: true,
+        chapters: {
+          orderBy: { order: "asc" },
+        },
       },
     });
 

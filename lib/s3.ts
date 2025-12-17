@@ -2,6 +2,7 @@ import {
   S3Client,
   PutObjectCommand,
   GetObjectCommand,
+  DeleteObjectCommand,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
@@ -47,4 +48,12 @@ export function generateObjectKey(filename: string): string {
   const random = Math.random().toString(36).substring(2, 8);
   const sanitized = filename.replace(/[^a-zA-Z0-9.-]/g, "_");
   return `audio/${timestamp}-${random}-${sanitized}`;
+}
+
+export async function deleteObject(objectKey: string): Promise<void> {
+  const command = new DeleteObjectCommand({
+    Bucket: bucket,
+    Key: objectKey,
+  });
+  await s3Client.send(command);
 }

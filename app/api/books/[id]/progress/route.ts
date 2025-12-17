@@ -4,8 +4,9 @@ import { z } from "zod";
 
 const progressSchema = z.object({
   sessionId: z.string().min(1),
+  chapterId: z.string().min(1),
   position: z.number().min(0),
-  duration: z.number().min(0),
+  completed: z.boolean().optional(),
 });
 
 export async function GET(
@@ -33,12 +34,17 @@ export async function GET(
     });
 
     if (!progress) {
-      return NextResponse.json({ position: 0, duration: 0 });
+      return NextResponse.json({ 
+        currentChapterId: null, 
+        position: 0, 
+        completed: false 
+      });
     }
 
     return NextResponse.json({
+      currentChapterId: progress.currentChapterId,
       position: progress.position,
-      duration: progress.duration,
+      completed: progress.completed,
     });
   } catch (error) {
     console.error("Failed to get progress:", error);
@@ -65,7 +71,7 @@ export async function POST(
       );
     }
 
-    const { sessionId, position, duration } = parsed.data;
+    const { sessionId, chapterId, position, completed } = parsed.data;
 
     const progress = await db.playbackProgress.upsert({
       where: {
@@ -75,20 +81,23 @@ export async function POST(
         },
       },
       update: {
+        currentChapterId: chapterId,
         position,
-        duration,
+        completed: completed ?? false,
       },
       create: {
         sessionId,
         bookId: id,
+        currentChapterId: chapterId,
         position,
-        duration,
+        completed: completed ?? false,
       },
     });
 
     return NextResponse.json({
+      currentChapterId: progress.currentChapterId,
       position: progress.position,
-      duration: progress.duration,
+      completed: progress.completed,
     });
   } catch (error) {
     console.error("Failed to save progress:", error);

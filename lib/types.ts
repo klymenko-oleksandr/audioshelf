@@ -1,11 +1,15 @@
-export interface AudioAsset {
+export interface Chapter {
   id: string;
+  title: string;
+  order: number;
+  duration: number;
   mimeType: string;
 }
 
 export interface BookProgress {
+  currentChapterId: string | null;
   position: number;
-  duration: number;
+  completed: boolean;
 }
 
 export interface Book {
@@ -13,7 +17,8 @@ export interface Book {
   title: string;
   author: string;
   coverUrl: string | null;
+  totalDuration: number;
   createdAt: string;
-  audio: AudioAsset | null;
+  chapters: Chapter[];
   progress?: BookProgress;
 }

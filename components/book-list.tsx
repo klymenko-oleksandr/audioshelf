@@ -6,10 +6,11 @@ import { BookCard } from "./book-card";
 interface BookListProps {
   books: Book[];
   onPlay: (book: Book) => void;
+  onDelete?: (bookId: string) => void;
   currentBookId: string | null;
 }
 
-export function BookList({ books, onPlay, currentBookId }: BookListProps) {
+export function BookList({ books, onPlay, onDelete, currentBookId }: BookListProps) {
   if (books.length === 0) {
     return (
       <div className="text-center py-12 text-muted-foreground">
@@ -25,6 +26,7 @@ export function BookList({ books, onPlay, currentBookId }: BookListProps) {
           key={book.id}
           book={book}
           onPlay={onPlay}
+          onDelete={onDelete}
           isPlaying={currentBookId === book.id}
         />
       ))}

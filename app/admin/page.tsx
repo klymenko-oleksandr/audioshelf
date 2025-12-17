@@ -1,4 +1,5 @@
 import { AdminUploadForm } from "@/components/admin-upload-form";
+import { AdminBookList } from "@/components/admin-book-list";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 
@@ -22,8 +23,13 @@ export default function AdminPage() {
         </div>
       </header>
 
-      <main className="max-w-screen-xl mx-auto px-4 py-8">
+      <main className="max-w-screen-xl mx-auto px-4 py-8 space-y-8">
         <AdminUploadForm />
+        
+        <div>
+          <h2 className="text-xl font-semibold mb-4">Existing Books</h2>
+          <AdminBookList />
+        </div>
       </main>
     </div>
   );

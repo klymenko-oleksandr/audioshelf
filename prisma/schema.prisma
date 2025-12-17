@@ -14,32 +14,40 @@ datasource db {
 }
 
 model Book {
-  id        String             @id @default(cuid())
-  title     String
-  author    String
-  coverUrl  String?
-  createdAt DateTime           @default(now())
-  audio     AudioAsset?
-  progress  PlaybackProgress[]
+  id            String             @id @default(cuid())
+  title         String
+  author        String
+  coverUrl      String?
+  totalDuration Float              @default(0) // Sum of all chapter durations in seconds
+  createdAt     DateTime           @default(now())
+  chapters      Chapter[]
+  progress      PlaybackProgress[]
 }
 
-model AudioAsset {
+model Chapter {
   id        String   @id @default(cuid())
-  bookId    String   @unique
-  objectKey String
+  bookId    String
+  title     String   // e.g., "Chapter 1" or custom title
+  order     Int      // Order within the book (1-indexed)
+  objectKey String   // S3 object key for the audio file
   mimeType  String
+  duration  Float    @default(0) // Duration in seconds
   createdAt DateTime @default(now())
   book      Book     @relation(fields: [bookId], references: [id], onDelete: Cascade)
+
+  @@unique([bookId, order])
+  @@index([bookId])
 }
 
 model PlaybackProgress {
-  id        String   @id @default(cuid())
-  sessionId String
-  bookId    String
-  position  Float    @default(0)
-  duration  Float    @default(0)
-  updatedAt DateTime @updatedAt
-  book      Book     @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  id               String   @id @default(cuid())
+  sessionId        String
+  bookId           String
+  currentChapterId String?  // Which chapter user is on (null = not started)
+  position         Float    @default(0) // Position within current chapter
+  completed        Boolean  @default(false) // Has user finished the entire book?
+  updatedAt        DateTime @updatedAt
+  book             Book     @relation(fields: [bookId], references: [id], onDelete: Cascade)
 
   @@unique([sessionId, bookId])
   @@index([sessionId])

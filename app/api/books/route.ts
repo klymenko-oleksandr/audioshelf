@@ -5,11 +5,15 @@ export async function GET() {
   try {
     const books = await db.book.findMany({
       include: {
-        audio: {
+        chapters: {
           select: {
             id: true,
+            title: true,
+            order: true,
+            duration: true,
             mimeType: true,
           },
+          orderBy: { order: "asc" },
         },
       },
       orderBy: {
