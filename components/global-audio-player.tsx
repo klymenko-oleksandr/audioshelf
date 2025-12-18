@@ -17,13 +17,15 @@ export function GlobalAudioPlayer() {
   const { 
     currentBook: book, 
     currentChapterId: requestedChapterId,
+    isPlaying: contextIsPlaying,
     closePlayer, 
     onProgressUpdate,
     setIsPlaying: setContextIsPlaying,
+    setCurrentChapterId: setContextChapterId,
+    registerSaveProgressCallback,
   } = useAudioPlayer();
 
   const audioRef = useRef<HTMLAudioElement>(null);
-  const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
@@ -62,6 +64,12 @@ export function GlobalAudioPlayer() {
 
   const loadChapter = useCallback(async (chapterId?: string, seekPosition?: number) => {
     if (!book || isLoadingChapterRef.current) return;
+    
+    // Save progress of current chapter before switching
+    if (currentChapter && audioRef.current) {
+      await saveProgress(audioRef.current.currentTime);
+    }
+    
     isLoadingChapterRef.current = true;
     setLoading(true);
     setError(null);
@@ -79,6 +87,8 @@ export function GlobalAudioPlayer() {
       setAudioUrl(playData.playUrl);
       setCurrentChapter(playData.chapter);
       setTotalChapters(playData.totalChapters);
+      // Sync chapter ID back to context so other components know which chapter is playing
+      setContextChapterId(playData.chapter.id);
       
       if (seekPosition !== undefined && seekPosition > 0) {
         setInitialPosition(seekPosition);
@@ -93,7 +103,7 @@ export function GlobalAudioPlayer() {
       setLoading(false);
       isLoadingChapterRef.current = false;
     }
-  }, [book]);
+  }, [book, currentChapter, saveProgress, setContextChapterId]);
 
   const goToNextChapter = useCallback(async () => {
     if (!book || !currentChapter) return;
@@ -101,7 +111,6 @@ export function GlobalAudioPlayer() {
     if (nextChapter) {
       await loadChapter(nextChapter.id);
     } else {
-      setIsPlaying(false);
       setContextIsPlaying(false);
       saveProgress(currentChapter.duration, true);
     }
@@ -122,11 +131,21 @@ export function GlobalAudioPlayer() {
     }
   }, [book, currentChapter, currentTime, loadChapter]);
 
+  // Sync audio element with context isPlaying state
+  useEffect(() => {
+    if (!audioRef.current || loading) return;
+    
+    if (contextIsPlaying && audioRef.current.paused) {
+      audioRef.current.play().catch(() => {});
+    } else if (!contextIsPlaying && !audioRef.current.paused) {
+      audioRef.current.pause();
+    }
+  }, [contextIsPlaying, loading]);
+
   // Handle book changes
   useEffect(() => {
     if (!book) {
       setAudioUrl(null);
-      setIsPlaying(false);
       setCurrentTime(0);
       setDuration(0);
       setInitialPosition(null);
@@ -170,16 +189,34 @@ export function GlobalAudioPlayer() {
 
       fetchProgressAndLoadChapter();
     }
-  }, [book, requestedChapterId, loadChapter]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [book, requestedChapterId]);
 
-  // Handle chapter change requests from context
+  // Handle chapter change requests from context (for switching chapters within the same book)
   useEffect(() => {
-    if (requestedChapterId && currentChapter && requestedChapterId !== currentChapter.id) {
-      if (book?.id === lastBookIdRef.current) {
-        loadChapter(requestedChapterId);
-      }
+    // Only handle explicit chapter switches, not initial load
+    // The book change effect handles initial load with saved position
+    if (
+      requestedChapterId && 
+      currentChapter && 
+      requestedChapterId !== currentChapter.id &&
+      book?.id === lastBookIdRef.current &&
+      lastRequestedChapterIdRef.current !== requestedChapterId
+    ) {
+      lastRequestedChapterIdRef.current = requestedChapterId;
+      loadChapter(requestedChapterId);
     }
   }, [requestedChapterId, currentChapter, book, loadChapter]);
+
+  // Register save progress callback so context can trigger saves before switching books
+  useEffect(() => {
+    const saveCurrentProgress = async () => {
+      if (currentChapter && audioRef.current) {
+        await saveProgress(audioRef.current.currentTime);
+      }
+    };
+    registerSaveProgressCallback(saveCurrentProgress);
+  }, [currentChapter, saveProgress, registerSaveProgressCallback]);
 
   // Auto-play when audio is loaded
   useEffect(() => {
@@ -214,7 +251,7 @@ export function GlobalAudioPlayer() {
 
   const handlePlayPause = () => {
     if (audioRef.current) {
-      if (isPlaying) {
+      if (contextIsPlaying) {
         audioRef.current.pause();
       } else {
         audioRef.current.play();
@@ -244,12 +281,10 @@ export function GlobalAudioPlayer() {
   };
 
   const handlePlay = () => {
-    setIsPlaying(true);
     setContextIsPlaying(true);
   };
 
   const handlePause = () => {
-    setIsPlaying(false);
     setContextIsPlaying(false);
     if (currentChapter) {
       saveProgress(currentTime);
@@ -309,7 +344,7 @@ export function GlobalAudioPlayer() {
             >
               {loading ? (
                 <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-              ) : isPlaying ? (
+              ) : contextIsPlaying ? (
                 <Pause className="w-5 h-5" />
               ) : (
                 <Play className="w-5 h-5" />

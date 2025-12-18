@@ -12,7 +12,7 @@ export function HomePage() {
   const [books, setBooks] = useState<Book[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const { currentBook, playBook, registerProgressCallback } = useAudioPlayer();
+  const { registerProgressCallback } = useAudioPlayer();
 
   const fetchBooksWithProgress = useCallback(async () => {
     try {
@@ -53,10 +53,6 @@ export function HomePage() {
     fetchBooksWithProgress();
   }, [fetchBooksWithProgress]);
 
-  const handlePlay = (book: Book) => {
-    playBook(book);
-  };
-
   // Register progress callback for refreshing book list
   useEffect(() => {
     registerProgressCallback(fetchBooksWithProgress);
@@ -88,11 +84,7 @@ export function HomePage() {
         )}
 
         {!loading && !error && (
-          <BookList
-            books={books}
-            onPlay={handlePlay}
-            currentBookId={currentBook?.id ?? null}
-          />
+          <BookList books={books} />
         )}
       </main>
 

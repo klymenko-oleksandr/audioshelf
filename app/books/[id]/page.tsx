@@ -35,9 +35,10 @@ export default function BookDetailsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
-  const { currentBook, currentChapterId, isPlaying, playBook, playChapter } = useAudioPlayer();
+  const { currentBook, currentChapterId, isPlaying, playBook, playChapter, togglePlayPause } = useAudioPlayer();
 
   const isCurrentBook = currentBook?.id === bookId;
+  const isThisBookPlaying = isCurrentBook && isPlaying;
 
   useEffect(() => {
     const fetchBook = async () => {
@@ -64,18 +65,23 @@ export default function BookDetailsPage() {
   }, [bookId]);
 
   const handlePlayBook = () => {
-    if (book) {
+    if (!book) return;
+    if (isCurrentBook) {
+      togglePlayPause();
+    } else {
       playBook(book);
     }
   };
 
   const handlePlayChapter = (chapterId: string) => {
-    if (book) {
-      if (isCurrentBook) {
-        playChapter(chapterId);
-      } else {
-        playBook(book, chapterId);
-      }
+    if (!book) return;
+    const isThisChapterPlaying = isCurrentBook && currentChapterId === chapterId && isPlaying;
+    if (isThisChapterPlaying) {
+      togglePlayPause();
+    } else if (isCurrentBook) {
+      playChapter(chapterId);
+    } else {
+      playBook(book, chapterId);
     }
   };
 
@@ -143,10 +149,10 @@ export default function BookDetailsPage() {
             </div>
 
             <Button onClick={handlePlayBook} size="lg" className="mb-6">
-              {isCurrentBook && isPlaying ? (
+              {isThisBookPlaying ? (
                 <>
                   <Pause className="w-5 h-5 mr-2" />
-                  Playing...
+                  Pause
                 </>
               ) : (
                 <>
@@ -168,39 +174,37 @@ export default function BookDetailsPage() {
         {/* Chapters List */}
         <div>
           <h2 className="text-xl font-semibold mb-4">Chapters</h2>
-          <div className="space-y-2">
+          <div className="space-y-1">
             {book.chapters.map((chapter, index) => {
               const isCurrentChapter = isCurrentBook && currentChapterId === chapter.id;
+              const isChapterPlaying = isCurrentChapter && isPlaying;
               return (
-                <Card
+                <div
                   key={chapter.id}
-                  className={`p-4 flex items-center justify-between ${
-                    isCurrentChapter ? "border-primary bg-primary/5" : ""
+                  className={`flex items-center gap-3 py-2 px-3 rounded-md hover:bg-muted/50 transition-colors ${
+                    isCurrentChapter ? "bg-primary/10" : ""
                   }`}
                 >
-                  <div className="flex items-center gap-4">
-                    <span className="text-muted-foreground w-8">{index + 1}</span>
-                    <div>
-                      <p className={`font-medium ${isCurrentChapter ? "text-primary" : ""}`}>
-                        {chapter.title}
-                      </p>
-                      <p className="text-sm text-muted-foreground">
-                        {formatDuration(chapter.duration)}
-                      </p>
-                    </div>
-                  </div>
                   <Button
-                    variant={isCurrentChapter ? "default" : "ghost"}
+                    variant={isChapterPlaying ? "default" : "ghost"}
                     size="icon"
+                    className="h-8 w-8 flex-shrink-0"
                     onClick={() => handlePlayChapter(chapter.id)}
                   >
-                    {isCurrentChapter && isPlaying ? (
+                    {isChapterPlaying ? (
                       <Pause className="w-4 h-4" />
                     ) : (
                       <Play className="w-4 h-4" />
                     )}
                   </Button>
-                </Card>
+                  <span className="text-muted-foreground text-sm w-6 flex-shrink-0">{index + 1}</span>
+                  <span className={`flex-1 truncate ${isCurrentChapter ? "text-primary font-medium" : ""}`}>
+                    {chapter.title}
+                  </span>
+                  <span className="text-sm text-muted-foreground flex-shrink-0">
+                    {formatDuration(chapter.duration)}
+                  </span>
+                </div>
               );
             })}
           </div>

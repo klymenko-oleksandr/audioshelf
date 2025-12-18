@@ -52,9 +52,7 @@ export function AdminBookList() {
         <BookCard
           key={book.id}
           book={book}
-          onPlay={() => {}}
           onDelete={handleDelete}
-          isPlaying={false}
           showEditButton={true}
         />
       ))}

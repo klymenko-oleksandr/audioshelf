@@ -17,13 +17,11 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { useAudioPlayer } from "./audio-player-context";
 
 interface BookCardProps {
   book: Book;
-  onPlay: (book: Book) => void;
   onDelete?: (bookId: string) => void;
-  onEdit?: (bookId: string) => void;
-  isPlaying: boolean;
   showEditButton?: boolean;
 }
 
@@ -36,10 +34,13 @@ function formatDuration(seconds: number): string {
   return `${mins}m`;
 }
 
-export function BookCard({ book, onPlay, onDelete, onEdit, isPlaying, showEditButton }: BookCardProps) {
+export function BookCard({ book, onDelete, showEditButton }: BookCardProps) {
   const [isDeleting, setIsDeleting] = useState(false);
+  const { currentBook, isPlaying, playBook, togglePlayPause } = useAudioPlayer();
   const hasChapters = book.chapters && book.chapters.length > 0;
   const progress = book.progress;
+  const isCurrentBook = currentBook?.id === book.id;
+  const isThisBookPlaying = isCurrentBook && isPlaying;
 
   const handleDelete = async () => {
     setIsDeleting(true);
@@ -137,20 +138,6 @@ export function BookCard({ book, onPlay, onDelete, onEdit, isPlaying, showEditBu
               </AlertDialogContent>
             </AlertDialog>
           )}
-          {hasChapters && (
-            <Button
-              size="icon"
-              variant="secondary"
-              className="rounded-full shadow-lg"
-              onClick={() => onPlay(book)}
-            >
-              {isPlaying ? (
-                <Pause className="w-4 h-4 text-primary" />
-              ) : (
-                <Play className="w-4 h-4" />
-              )}
-            </Button>
-          )}
         </div>
         {progressPercent > 0 && (
           <div className="absolute bottom-0 left-0 right-0 h-1 bg-black/20">
@@ -191,6 +178,35 @@ export function BookCard({ book, onPlay, onDelete, onEdit, isPlaying, showEditBu
         )}
         </CardContent>
       </Link>
+      {hasChapters && (
+        <div className="px-4 pb-3">
+          <Button
+            size="sm"
+            variant={isThisBookPlaying ? "default" : "outline"}
+            className="w-full"
+            onClick={(e) => {
+              e.preventDefault();
+              if (isCurrentBook) {
+                togglePlayPause();
+              } else {
+                playBook(book);
+              }
+            }}
+          >
+            {isThisBookPlaying ? (
+              <>
+                <Pause className="w-4 h-4 mr-2" />
+                Pause
+              </>
+            ) : (
+              <>
+                <Play className="w-4 h-4 mr-2" />
+                {progressPercent > 0 && progressPercent < 100 ? "Continue" : "Play"}
+              </>
+            )}
+          </Button>
+        </div>
+      )}
     </Card>
   );
 }
