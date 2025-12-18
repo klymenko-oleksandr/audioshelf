@@ -4,10 +4,25 @@ An audiobook streaming platform built with Next.js, featuring private audio stor
 
 ## Features
 
-- **Public Library**: Browse and play audiobooks with a YouTube Music-style sticky player
-- **Admin Dashboard**: Upload audiobooks with presigned URLs (direct-to-S3 uploads)
-- **Private Audio**: Audio files are stored privately and accessed via short-lived signed URLs
-- **Simple Auth**: Password-protected admin area (Phase 1)
+### Library & Playback
+- **Public Library**: Browse audiobooks with cover images, duration, and chapter count
+- **Book Details Page**: View book info, description, and chapter list
+- **Persistent Audio Player**: YouTube Music-style sticky player that persists across page navigation
+- **Chapter Navigation**: Play individual chapters, skip forward/back
+- **Progress Tracking**: Automatically saves and restores playback position per session
+
+### Admin Dashboard
+- **Upload Audiobooks**: Direct-to-S3 uploads with presigned URLs
+- **Multi-Chapter Support**: Upload multiple audio files per book with reordering
+- **Cover Image Uploads**: Upload cover images (JPG, PNG, WebP) with preview
+- **Edit Books**: Modify title, author, description, cover, and chapters
+- **Delete Books**: Remove books with automatic S3 cleanup
+- **Password Protected**: Simple password authentication
+
+### Storage & Security
+- **Private Audio**: Audio files accessed only via short-lived signed URLs (5 min TTL)
+- **S3-Compatible**: Works with Cloudflare R2, AWS S3, or any S3-compatible storage
+- **Cover Images**: Stored in S3 with signed URLs for display
 
 ## Tech Stack
 
@@ -95,34 +110,48 @@ Add this CORS policy to your bucket:
 
 | Method | Route | Description |
 |--------|-------|-------------|
-| GET | `/api/books` | List all books with audio info |
-| POST | `/api/books/[id]/play-url` | Get signed URL for playback (300s TTL) |
-| POST | `/api/admin/upload-url` | Get presigned upload URL (admin) |
-| POST | `/api/admin/books` | Create book record (admin) |
+| GET | `/api/books` | List all books with chapters and cover URLs |
+| GET | `/api/books/[id]` | Get single book details |
+| POST | `/api/books/[id]/play-url` | Get signed URL for chapter playback (5 min TTL) |
+| GET | `/api/books/[id]/progress` | Get playback progress for session |
+| POST | `/api/books/[id]/progress` | Save playback progress |
+| POST | `/api/admin/upload-url` | Get presigned upload URL for audio/cover (admin) |
+| POST | `/api/admin/books` | Create book with chapters (admin) |
+| GET | `/api/admin/books/[id]` | Get book for editing (admin) |
+| PUT | `/api/admin/books/[id]` | Update book (admin) |
+| DELETE | `/api/admin/books/[id]` | Delete book and S3 files (admin) |
 
 ## Project Structure
 
 ```
 ├── app/
 │   ├── api/
-│   │   ├── books/           # Public API routes
-│   │   └── admin/           # Protected admin routes
-│   ├── admin/               # Admin pages
-│   └── page.tsx             # Public homepage
+│   │   ├── books/              # Public API routes
+│   │   │   └── [id]/           # Book details, play-url, progress
+│   │   └── admin/              # Protected admin routes
+│   │       ├── books/          # CRUD operations
+│   │       └── upload-url/     # Presigned URL generation
+│   ├── admin/                  # Admin pages
+│   │   └── books/[id]/edit/    # Edit book page
+│   ├── books/[id]/             # Book details page
+│   └── page.tsx                # Public homepage
 ├── components/
-│   ├── ui/                  # shadcn/ui components
-│   ├── book-card.tsx
-│   ├── book-list.tsx
-│   ├── audio-player-bar.tsx
-│   └── admin-upload-form.tsx
+│   ├── ui/                     # shadcn/ui components
+│   ├── audio-player-context.tsx # Global audio state
+│   ├── global-audio-player.tsx  # Persistent player
+│   ├── admin-book-form.tsx     # Create/edit book form
+│   ├── admin-book-list.tsx     # Admin book management
+│   ├── book-card.tsx           # Book card component
+│   └── book-list.tsx           # Book grid
 ├── lib/
-│   ├── db.ts                # Prisma client
-│   ├── s3.ts                # S3 utilities
-│   ├── validators.ts        # Zod schemas
-│   └── types.ts             # TypeScript types
+│   ├── db.ts                   # Prisma client
+│   ├── s3.ts                   # S3 utilities
+│   ├── session.ts              # Session ID management
+│   ├── validators.ts           # Zod schemas
+│   └── types.ts                # TypeScript types
 ├── prisma/
-│   └── schema.prisma        # Database schema
-└── middleware.ts            # Admin auth middleware
+│   └── schema.prisma           # Database schema
+└── middleware.ts               # Admin auth middleware
 ```
 
 ## Security Notes
@@ -135,14 +164,44 @@ Add this CORS policy to your bucket:
   - Adding rate limiting
   - Implementing HTTPS-only cookies
 
-## Future Enhancements (Phase 2+)
+## Future Enhancements
 
 - [ ] User authentication and personal libraries
-- [ ] Chapters and bookmarks
-- [ ] Playback progress tracking
-- [ ] Cover image uploads
+- [ ] Bookmarks within chapters
 - [ ] Search and filtering
 - [ ] Public/private book visibility toggle
+- [ ] Playback speed control
+- [ ] Sleep timer
+
+## Changelog
+
+### v0.5.0 (Current)
+- Book details page with chapter list
+- Persistent audio player across page navigation
+- Play individual chapters from book details
+- Edit existing books (title, author, description, cover, chapters)
+- Description field for books (5000 char limit)
+- Cover image upload hints (size, ratio, format)
+
+### v0.4.0
+- Multi-chapter audiobook support
+- Chapter navigation (skip forward/back)
+- Unified progress tracking across chapters
+- Delete books with S3 cleanup
+- Cover image uploads to S3
+
+### v0.3.0
+- Playback progress saving/restoring
+- Session-based progress tracking
+
+### v0.2.0
+- Admin dashboard with upload form
+- Direct-to-S3 uploads with presigned URLs
+
+### v0.1.0
+- Initial release
+- Public library with audio player
+- Password-protected admin area
 
 ## License
 
