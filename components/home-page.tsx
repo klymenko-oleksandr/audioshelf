@@ -3,16 +3,16 @@
 import { useState, useEffect, useCallback } from "react";
 import { Book, BookProgress } from "@/lib/types";
 import { BookList } from "./book-list";
-import { AudioPlayerBar } from "./audio-player-bar";
 import { getSessionId } from "@/lib/session";
 import packageJson from "@/package.json";
 import { ThemeToggle } from "./theme-toggle";
+import { useAudioPlayer } from "./audio-player-context";
 
 export function HomePage() {
   const [books, setBooks] = useState<Book[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [currentBook, setCurrentBook] = useState<Book | null>(null);
+  const { currentBook, playBook, registerProgressCallback } = useAudioPlayer();
 
   const fetchBooksWithProgress = useCallback(async () => {
     try {
@@ -54,16 +54,13 @@ export function HomePage() {
   }, [fetchBooksWithProgress]);
 
   const handlePlay = (book: Book) => {
-    setCurrentBook(book);
+    playBook(book);
   };
 
-  const handleClosePlayer = () => {
-    setCurrentBook(null);
-  };
-
-  const handleProgressUpdate = () => {
-    fetchBooksWithProgress();
-  };
+  // Register progress callback for refreshing book list
+  useEffect(() => {
+    registerProgressCallback(fetchBooksWithProgress);
+  }, [registerProgressCallback, fetchBooksWithProgress]);
 
   return (
     <div className="min-h-screen bg-background">
@@ -99,13 +96,7 @@ export function HomePage() {
         )}
       </main>
 
-      <AudioPlayerBar 
-        book={currentBook} 
-        onClose={handleClosePlayer}
-        onProgressUpdate={handleProgressUpdate}
-      />
-
-      <footer className="fixed bottom-0 right-0 p-2 text-xs text-muted-foreground/50">
+      <footer className="fixed bottom-0 right-0 p-2 text-xs text-muted-foreground/50 z-40">
         v{packageJson.version}
       </footer>
     </div>

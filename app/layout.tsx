@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
+import { AudioPlayerProvider } from "@/components/audio-player-context";
+import { GlobalAudioPlayer } from "@/components/global-audio-player";
 
 const jetbrainsMono = JetBrains_Mono({subsets:['latin'],variable:'--font-sans'});
 
@@ -36,7 +38,10 @@ export default function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
-          {children}
+          <AudioPlayerProvider>
+            {children}
+            <GlobalAudioPlayer />
+          </AudioPlayerProvider>
         </ThemeProvider>
       </body>
     </html>

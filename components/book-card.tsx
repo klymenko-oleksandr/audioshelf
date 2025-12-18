@@ -161,13 +161,14 @@ export function BookCard({ book, onPlay, onDelete, onEdit, isPlaying, showEditBu
           </div>
         )}
       </div>
-      <CardContent className="p-4">
-        <h3 className="font-semibold truncate" title={book.title}>
-          {book.title}
-        </h3>
-        <p className="text-sm text-muted-foreground truncate" title={book.author}>
-          {book.author}
-        </p>
+      <Link href={`/books/${book.id}`}>
+        <CardContent className="p-4 hover:bg-muted/50 transition-colors">
+          <h3 className="font-semibold truncate" title={book.title}>
+            {book.title}
+          </h3>
+          <p className="text-sm text-muted-foreground truncate" title={book.author}>
+            {book.author}
+          </p>
         <div className="flex items-center gap-2 mt-1">
           {book.totalDuration > 0 && (
             <span className="text-xs text-muted-foreground">
@@ -188,7 +189,8 @@ export function BookCard({ book, onPlay, onDelete, onEdit, isPlaying, showEditBu
         {progressPercent >= 100 && (
           <p className="text-xs text-green-600 mt-1">✓ Finished</p>
         )}
-      </CardContent>
+        </CardContent>
+      </Link>
     </Card>
   );
 }
