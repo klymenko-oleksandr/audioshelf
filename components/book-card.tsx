@@ -4,7 +4,8 @@ import { useState } from "react";
 import { Book } from "@/lib/types";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Play, Music, Pause, Trash2, Loader2 } from "lucide-react";
+import { Play, Music, Pause, Trash2, Loader2, Pencil } from "lucide-react";
+import Link from "next/link";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -21,7 +22,9 @@ interface BookCardProps {
   book: Book;
   onPlay: (book: Book) => void;
   onDelete?: (bookId: string) => void;
+  onEdit?: (bookId: string) => void;
   isPlaying: boolean;
+  showEditButton?: boolean;
 }
 
 function formatDuration(seconds: number): string {
@@ -33,7 +36,7 @@ function formatDuration(seconds: number): string {
   return `${mins}m`;
 }
 
-export function BookCard({ book, onPlay, onDelete, isPlaying }: BookCardProps) {
+export function BookCard({ book, onPlay, onDelete, onEdit, isPlaying, showEditButton }: BookCardProps) {
   const [isDeleting, setIsDeleting] = useState(false);
   const hasChapters = book.chapters && book.chapters.length > 0;
   const progress = book.progress;
@@ -93,6 +96,17 @@ export function BookCard({ book, onPlay, onDelete, isPlaying }: BookCardProps) {
           <Music className="w-12 h-12 text-muted-foreground" />
         )}
         <div className="absolute bottom-2 right-2 flex gap-1">
+          {showEditButton && (
+            <Link href={`/admin/books/${book.id}/edit`}>
+              <Button
+                size="icon"
+                variant="secondary"
+                className="rounded-full shadow-lg h-8 w-8"
+              >
+                <Pencil className="w-3 h-3" />
+              </Button>
+            </Link>
+          )}
           {onDelete && (
             <AlertDialog>
               <AlertDialogTrigger asChild>

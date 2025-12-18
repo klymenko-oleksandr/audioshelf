@@ -16,6 +16,7 @@ export interface Book {
   id: string;
   title: string;
   author: string;
+  description: string | null;
   coverUrl: string | null;
   totalDuration: number;
   createdAt: string;

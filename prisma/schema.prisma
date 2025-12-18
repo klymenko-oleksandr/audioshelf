@@ -17,9 +17,11 @@ model Book {
   id             String             @id @default(cuid())
   title          String
   author         String
+  description    String?
   coverObjectKey String?
   totalDuration  Float              @default(0) // Sum of all chapter durations in seconds
   createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
   chapters       Chapter[]
   progress       PlaybackProgress[]
 }
