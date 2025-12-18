@@ -14,14 +14,14 @@ datasource db {
 }
 
 model Book {
-  id            String             @id @default(cuid())
-  title         String
-  author        String
-  coverUrl      String?
-  totalDuration Float              @default(0) // Sum of all chapter durations in seconds
-  createdAt     DateTime           @default(now())
-  chapters      Chapter[]
-  progress      PlaybackProgress[]
+  id             String             @id @default(cuid())
+  title          String
+  author         String
+  coverObjectKey String?
+  totalDuration  Float              @default(0) // Sum of all chapter durations in seconds
+  createdAt      DateTime           @default(now())
+  chapters       Chapter[]
+  progress       PlaybackProgress[]
 }
 
 model Chapter {

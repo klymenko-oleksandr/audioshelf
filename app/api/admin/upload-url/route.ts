@@ -14,8 +14,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { filename, contentType } = parsed.data;
-    const objectKey = generateObjectKey(filename);
+    const { filename, contentType, type } = parsed.data;
+    const prefix = type === "cover" ? "covers" : "audio";
+    const objectKey = generateObjectKey(filename, prefix);
     const uploadUrl = await createUploadUrl(objectKey, contentType);
 
     return NextResponse.json({ uploadUrl, objectKey });

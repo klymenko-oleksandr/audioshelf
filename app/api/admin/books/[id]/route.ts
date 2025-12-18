@@ -19,6 +19,13 @@ export async function DELETE(
       return NextResponse.json({ error: "Book not found" }, { status: 404 });
     }
 
+    // Delete cover image from S3 if exists
+    if (book.coverObjectKey) {
+      await deleteObject(book.coverObjectKey).catch((err) => {
+        console.error(`Failed to delete cover image ${book.coverObjectKey}:`, err);
+      });
+    }
+
     // Delete all chapter audio files from S3
     await Promise.all(
       book.chapters.map((chapter) => 

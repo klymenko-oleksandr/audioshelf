@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Upload, Check, Loader2, GripVertical, X, Plus } from "lucide-react";
+import { Upload, Check, Loader2, X, Plus, ImageIcon } from "lucide-react";
 
 type Step = "form" | "uploading" | "saving" | "done";
 
@@ -20,24 +20,30 @@ export function AdminUploadForm() {
   const [step, setStep] = useState<Step>("form");
   const [title, setTitle] = useState("");
   const [author, setAuthor] = useState("");
-  const [coverUrl, setCoverUrl] = useState("");
+  const [coverFile, setCoverFile] = useState<File | null>(null);
+  const [coverPreview, setCoverPreview] = useState<string | null>(null);
   const [chapters, setChapters] = useState<ChapterFile[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadingChapter, setUploadingChapter] = useState<number>(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const coverInputRef = useRef<HTMLInputElement>(null);
 
   const resetForm = () => {
     setStep("form");
     setTitle("");
     setAuthor("");
-    setCoverUrl("");
+    setCoverFile(null);
+    setCoverPreview(null);
     setChapters([]);
     setError(null);
     setUploadProgress(0);
     setUploadingChapter(0);
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
+    }
+    if (coverInputRef.current) {
+      coverInputRef.current.value = "";
     }
   };
 
@@ -101,6 +107,28 @@ export function AdminUploadForm() {
     return `${mins}:${secs.toString().padStart(2, "0")}`;
   };
 
+  const handleCoverSelected = (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    const file = files[0];
+    if (!file.type.startsWith("image/")) {
+      setError("Please select an image file");
+      return;
+    }
+    setCoverFile(file);
+    setCoverPreview(URL.createObjectURL(file));
+    if (coverInputRef.current) {
+      coverInputRef.current.value = "";
+    }
+  };
+
+  const removeCover = () => {
+    setCoverFile(null);
+    setCoverPreview(null);
+    if (coverInputRef.current) {
+      coverInputRef.current.value = "";
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -118,6 +146,45 @@ export function AdminUploadForm() {
     try {
       setStep("uploading");
       
+      // Upload cover image first if provided
+      let coverObjectKey: string | null = null;
+      if (coverFile) {
+        setUploadingChapter(0); // 0 indicates cover upload
+        setUploadProgress(0);
+
+        const coverUrlRes = await fetch("/api/admin/upload-url", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            filename: coverFile.name,
+            contentType: coverFile.type,
+            type: "cover",
+          }),
+        });
+
+        if (!coverUrlRes.ok) {
+          const data = await coverUrlRes.json();
+          throw new Error(data.error || "Failed to get upload URL for cover");
+        }
+
+        const { uploadUrl, objectKey } = await coverUrlRes.json();
+
+        const uploadRes = await fetch(uploadUrl, {
+          method: "PUT",
+          body: coverFile,
+          headers: {
+            "Content-Type": coverFile.type,
+          },
+        });
+
+        if (!uploadRes.ok) {
+          throw new Error("Failed to upload cover image");
+        }
+
+        coverObjectKey = objectKey;
+        setUploadProgress(100);
+      }
+
       // Upload all chapters and collect their object keys
       const uploadedChapters: Array<{
         title: string;
@@ -139,6 +206,7 @@ export function AdminUploadForm() {
           body: JSON.stringify({
             filename: chapter.file.name,
             contentType: chapter.file.type,
+            type: "audio",
           }),
         });
 
@@ -181,7 +249,7 @@ export function AdminUploadForm() {
         body: JSON.stringify({
           title: title.trim(),
           author: author.trim(),
-          coverUrl: coverUrl.trim() || null,
+          coverObjectKey: coverObjectKey,
           chapters: uploadedChapters,
         }),
       });
@@ -251,15 +319,45 @@ export function AdminUploadForm() {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="coverUrl">Cover Image URL (optional)</Label>
-            <Input
-              id="coverUrl"
-              type="url"
-              value={coverUrl}
-              onChange={(e) => setCoverUrl(e.target.value)}
-              placeholder="https://example.com/cover.jpg"
+            <Label>Cover Image (optional)</Label>
+            <input
+              ref={coverInputRef}
+              type="file"
+              accept="image/*"
+              onChange={(e) => handleCoverSelected(e.target.files)}
               disabled={step !== "form"}
+              className="hidden"
             />
+            {coverPreview ? (
+              <div className="relative w-32 h-32">
+                <img
+                  src={coverPreview}
+                  alt="Cover preview"
+                  className="w-full h-full object-cover rounded border"
+                />
+                <Button
+                  type="button"
+                  variant="destructive"
+                  size="icon"
+                  className="absolute -top-2 -right-2 h-6 w-6"
+                  onClick={removeCover}
+                  disabled={step !== "form"}
+                >
+                  <X className="w-3 h-3" />
+                </Button>
+              </div>
+            ) : (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => coverInputRef.current?.click()}
+                disabled={step !== "form"}
+                className="w-32 h-32 flex flex-col items-center justify-center gap-2"
+              >
+                <ImageIcon className="w-8 h-8 text-muted-foreground" />
+                <span className="text-xs text-muted-foreground">Add cover</span>
+              </Button>
+            )}
           </div>
 
           <div className="space-y-2">
@@ -362,12 +460,18 @@ export function AdminUploadForm() {
             <div className="space-y-2">
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Loader2 className="w-4 h-4 animate-spin" />
-                Uploading chapter {uploadingChapter} of {chapters.length}...
+                {uploadingChapter === 0 
+                  ? "Uploading cover image..."
+                  : `Uploading chapter ${uploadingChapter} of ${chapters.length}...`}
               </div>
               <div className="w-full bg-muted rounded-full h-2">
                 <div
                   className="bg-primary h-2 rounded-full transition-all"
-                  style={{ width: `${((uploadingChapter - 1) / chapters.length) * 100 + (uploadProgress / chapters.length)}%` }}
+                  style={{ 
+                    width: uploadingChapter === 0 
+                      ? `${uploadProgress}%`
+                      : `${((uploadingChapter - 1) / chapters.length) * 100 + (uploadProgress / chapters.length)}%` 
+                  }}
                 />
               </div>
             </div>

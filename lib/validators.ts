@@ -11,20 +11,26 @@ const chapterInputSchema = z.object({
 export const createBookSchema = z.object({
   title: z.string().min(1, "Title is required").max(255),
   author: z.string().min(1, "Author is required").max(255),
-  coverUrl: z.string().url().optional().nullable(),
+  coverObjectKey: z.string().optional().nullable(),
   chapters: z.array(chapterInputSchema).min(1, "At least one chapter is required"),
 });
 
 export const uploadUrlSchema = z.object({
   filename: z.string().min(1, "Filename is required"),
-  contentType: z
-    .string()
-    .min(1)
-    .refine(
-      (type) => type.startsWith("audio/"),
-      "Content type must be an audio format"
-    ),
-});
+  contentType: z.string().min(1),
+  type: z.enum(["audio", "cover"]).optional().default("audio"),
+}).refine(
+  (data) => {
+    if (data.type === "audio") {
+      return data.contentType.startsWith("audio/");
+    }
+    if (data.type === "cover") {
+      return data.contentType.startsWith("image/");
+    }
+    return true;
+  },
+  { message: "Invalid content type for the specified upload type" }
+);
 
 export type ChapterInput = z.infer<typeof chapterInputSchema>;
 export type CreateBookInput = z.infer<typeof createBookSchema>;

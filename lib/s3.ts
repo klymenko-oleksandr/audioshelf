@@ -43,11 +43,11 @@ export async function createPlayUrl(
   return getSignedUrl(s3Client, command, { expiresIn });
 }
 
-export function generateObjectKey(filename: string): string {
+export function generateObjectKey(filename: string, prefix = "audio"): string {
   const timestamp = Date.now();
   const random = Math.random().toString(36).substring(2, 8);
   const sanitized = filename.replace(/[^a-zA-Z0-9.-]/g, "_");
-  return `audio/${timestamp}-${random}-${sanitized}`;
+  return `${prefix}/${timestamp}-${random}-${sanitized}`;
 }
 
 export async function deleteObject(objectKey: string): Promise<void> {
