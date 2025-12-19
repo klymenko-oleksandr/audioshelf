@@ -1,7 +1,9 @@
 "use client";
 
-import { createContext, useContext, useState, useCallback, ReactNode } from "react";
-import { Book, BookProgress } from "@/lib/types";
+import { createContext, ReactNode, useCallback, useContext, useReducer } from 'react';
+import { Book } from '@/lib/types';
+import audioPlayerReducer from './audio-player/audioPlayerReducer';
+import { AudioPlayerState } from './audio-player/audio-player.model';
 
 interface AudioPlayerContextType {
   currentBook: Book | null;
@@ -13,55 +15,44 @@ interface AudioPlayerContextType {
   closePlayer: () => void;
   setIsPlaying: (playing: boolean) => void;
   setCurrentChapterId: (chapterId: string | null) => void;
-  onProgressUpdate: () => void;
-  registerProgressCallback: (callback: () => void) => void;
-  registerSaveProgressCallback: (callback: () => Promise<void>) => void;
 }
 
 const AudioPlayerContext = createContext<AudioPlayerContextType | null>(null);
 
-export function AudioPlayerProvider({ children }: { children: ReactNode }) {
-  const [currentBook, setCurrentBook] = useState<Book | null>(null);
-  const [currentChapterId, setCurrentChapterId] = useState<string | null>(null);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [progressCallback, setProgressCallback] = useState<(() => void) | null>(null);
-  const [saveProgressCallback, setSaveProgressCallback] = useState<(() => Promise<void>) | null>(null);
+const initialState: AudioPlayerState = {
+  currentBook: null,
+  currentChapterId: null,
+  isPlaying: false,
+};
 
-  const playBook = useCallback(async (book: Book, chapterId?: string) => {
-    // Save progress of current book before switching
-    if (saveProgressCallback) {
-      await saveProgressCallback();
-    }
-    setCurrentBook(book);
-    setCurrentChapterId(chapterId ?? null);
-    setIsPlaying(true);
-  }, [saveProgressCallback]);
+export function AudioPlayerProvider({ children }: { children: ReactNode }) {
+  const [state, dispatch] = useReducer(audioPlayerReducer, initialState);
+  const { currentBook, currentChapterId, isPlaying } = state;
+
+  const playBook = useCallback((book: Book, chapterId?: string) => {
+    dispatch({ type: 'PLAY_BOOK', payload: { book, chapterId } });
+  }, []);
 
   const playChapter = useCallback((chapterId: string) => {
-    setCurrentChapterId(chapterId);
-    setIsPlaying(true);
+    dispatch({ type: 'PLAY_CHAPTER', payload: chapterId });
   }, []);
 
   const togglePlayPause = useCallback(() => {
-    setIsPlaying((prev) => !prev);
+    dispatch({ type: 'TOGGLE_PLAY_PAUSE' });
   }, []);
 
   const closePlayer = useCallback(() => {
-    setCurrentBook(null);
-    setCurrentChapterId(null);
-    setIsPlaying(false);
+    dispatch({ type: 'CLOSE_PLAYER' });
   }, []);
 
-  const onProgressUpdate = useCallback(() => {
-    progressCallback?.();
-  }, [progressCallback]);
-
-  const registerProgressCallback = useCallback((callback: () => void) => {
-    setProgressCallback(() => callback);
+  const setIsPlaying = useCallback((playing: boolean) => {
+    dispatch({ type: 'SET_PLAYING', payload: playing });
   }, []);
 
-  const registerSaveProgressCallback = useCallback((callback: () => Promise<void>) => {
-    setSaveProgressCallback(() => callback);
+  const setCurrentChapterId = useCallback((chapterId: string | null) => {
+    if (chapterId) {
+      dispatch({ type: 'PLAY_CHAPTER', payload: chapterId });
+    }
   }, []);
 
   return (
@@ -76,9 +67,6 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
         closePlayer,
         setIsPlaying,
         setCurrentChapterId,
-        onProgressUpdate,
-        registerProgressCallback,
-        registerSaveProgressCallback,
       }}
     >
       {children}

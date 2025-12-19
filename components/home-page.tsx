@@ -1,47 +1,22 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Book, BookProgress } from "@/lib/types";
+import { Book } from "@/lib/types";
 import { BookList } from "./book-list";
-import { getSessionId } from "@/lib/session";
 import packageJson from "@/package.json";
 import { ThemeToggle } from "./theme-toggle";
-import { useAudioPlayer } from "./audio-player-context";
 
 export function HomePage() {
   const [books, setBooks] = useState<Book[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const { registerProgressCallback } = useAudioPlayer();
 
-  const fetchBooksWithProgress = useCallback(async () => {
+  const fetchBooks = useCallback(async () => {
     try {
       const res = await fetch("/api/books");
       if (!res.ok) throw new Error("Failed to fetch books");
       const booksData: Book[] = await res.json();
-
-      const sessionId = getSessionId();
-      if (sessionId) {
-        const progressPromises = booksData.map(async (book) => {
-          try {
-            const progressRes = await fetch(
-              `/api/books/${book.id}/progress?sessionId=${sessionId}`
-            );
-            if (progressRes.ok) {
-              const progress: BookProgress = await progressRes.json();
-              return { ...book, progress };
-            }
-          } catch {
-            // Ignore progress fetch errors
-          }
-          return book;
-        });
-
-        const booksWithProgress = await Promise.all(progressPromises);
-        setBooks(booksWithProgress);
-      } else {
-        setBooks(booksData);
-      }
+      setBooks(booksData);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load books");
     } finally {
@@ -50,13 +25,8 @@ export function HomePage() {
   }, []);
 
   useEffect(() => {
-    fetchBooksWithProgress();
-  }, [fetchBooksWithProgress]);
-
-  // Register progress callback for refreshing book list
-  useEffect(() => {
-    registerProgressCallback(fetchBooksWithProgress);
-  }, [registerProgressCallback, fetchBooksWithProgress]);
+    fetchBooks();
+  }, [fetchBooks]);
 
   return (
     <div className="min-h-screen bg-background">

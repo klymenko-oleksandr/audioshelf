@@ -4,6 +4,7 @@ import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
 import { AudioPlayerProvider } from "@/components/audio-player-context";
 import { GlobalAudioPlayer } from "@/components/global-audio-player";
+import { AudioProgressPersister } from "@/components/audio-progress-persister";
 
 const jetbrainsMono = JetBrains_Mono({subsets:['latin'],variable:'--font-sans'});
 
@@ -41,6 +42,7 @@ export default function RootLayout({
           <AudioPlayerProvider>
             {children}
             <GlobalAudioPlayer />
+            <AudioProgressPersister />
           </AudioPlayerProvider>
         </ThemeProvider>
       </body>

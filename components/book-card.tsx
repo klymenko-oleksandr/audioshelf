@@ -23,6 +23,7 @@ interface BookCardProps {
   book: Book;
   onDelete?: (bookId: string) => void;
   showEditButton?: boolean;
+  hidePlayButton?: boolean;
 }
 
 function formatDuration(seconds: number): string {
@@ -34,11 +35,10 @@ function formatDuration(seconds: number): string {
   return `${mins}m`;
 }
 
-export function BookCard({ book, onDelete, showEditButton }: BookCardProps) {
+export function BookCard({ book, onDelete, showEditButton, hidePlayButton = false }: BookCardProps) {
   const [isDeleting, setIsDeleting] = useState(false);
   const { currentBook, isPlaying, playBook, togglePlayPause } = useAudioPlayer();
   const hasChapters = book.chapters && book.chapters.length > 0;
-  const progress = book.progress;
   const isCurrentBook = currentBook?.id === book.id;
   const isThisBookPlaying = isCurrentBook && isPlaying;
 
@@ -57,32 +57,6 @@ export function BookCard({ book, onDelete, showEditButton }: BookCardProps) {
       setIsDeleting(false);
     }
   };
-  
-  // Calculate progress percentage based on chapters
-  let progressPercent = 0;
-  if (progress && hasChapters) {
-    if (progress.completed) {
-      progressPercent = 100;
-    } else if (progress.currentChapterId) {
-      const currentChapterIndex = book.chapters.findIndex(
-        (ch) => ch.id === progress.currentChapterId
-      );
-      if (currentChapterIndex >= 0) {
-        const currentChapter = book.chapters[currentChapterIndex];
-        // Progress = completed chapters + progress in current chapter
-        const completedDuration = book.chapters
-          .slice(0, currentChapterIndex)
-          .reduce((sum, ch) => sum + ch.duration, 0);
-        const currentProgress = currentChapter.duration > 0
-          ? (progress.position / currentChapter.duration) * currentChapter.duration
-          : 0;
-        const totalProgress = completedDuration + currentProgress;
-        progressPercent = book.totalDuration > 0
-          ? Math.min((totalProgress / book.totalDuration) * 100, 100)
-          : 0;
-      }
-    }
-  }
 
   return (
     <Card className="overflow-hidden transition-shadow hover:shadow-md pt-0">
@@ -139,14 +113,6 @@ export function BookCard({ book, onDelete, showEditButton }: BookCardProps) {
             </AlertDialog>
           )}
         </div>
-        {progressPercent > 0 && (
-          <div className="absolute bottom-0 left-0 right-0 h-1 bg-black/20">
-            <div 
-              className="h-full bg-primary transition-all"
-              style={{ width: `${progressPercent}%` }}
-            />
-          </div>
-        )}
       </div>
       <Link href={`/books/${book.id}`}>
         <CardContent className="p-4 hover:bg-muted/50 transition-colors">
@@ -168,17 +134,9 @@ export function BookCard({ book, onDelete, showEditButton }: BookCardProps) {
             </span>
           )}
         </div>
-        {progressPercent > 0 && progressPercent < 100 && (
-          <p className="text-xs text-muted-foreground mt-1">
-            {Math.round(progressPercent)}% complete
-          </p>
-        )}
-        {progressPercent >= 100 && (
-          <p className="text-xs text-green-600 mt-1">✓ Finished</p>
-        )}
         </CardContent>
       </Link>
-      {hasChapters && (
+      {!hidePlayButton && hasChapters && (
         <div className="px-4 pb-3">
           <Button
             size="sm"
@@ -201,7 +159,7 @@ export function BookCard({ book, onDelete, showEditButton }: BookCardProps) {
             ) : (
               <>
                 <Play className="w-4 h-4 mr-2" />
-                {progressPercent > 0 && progressPercent < 100 ? "Continue" : "Play"}
+                Play
               </>
             )}
           </Button>

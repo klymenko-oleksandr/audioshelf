@@ -54,6 +54,7 @@ export function AdminBookList() {
           book={book}
           onDelete={handleDelete}
           showEditButton={true}
+          hidePlayButton={true}
         />
       ))}
     </div>

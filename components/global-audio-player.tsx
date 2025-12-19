@@ -18,11 +18,9 @@ export function GlobalAudioPlayer() {
     currentBook: book, 
     currentChapterId: requestedChapterId,
     isPlaying: contextIsPlaying,
-    closePlayer, 
-    onProgressUpdate,
+    closePlayer,
     setIsPlaying: setContextIsPlaying,
     setCurrentChapterId: setContextChapterId,
-    registerSaveProgressCallback,
   } = useAudioPlayer();
 
   const audioRef = useRef<HTMLAudioElement>(null);
@@ -35,40 +33,12 @@ export function GlobalAudioPlayer() {
   const [initialPosition, setInitialPosition] = useState<number | null>(null);
   const [currentChapter, setCurrentChapter] = useState<CurrentChapter | null>(null);
   const [totalChapters, setTotalChapters] = useState(0);
-  const lastSaveRef = useRef<number>(0);
   const isLoadingChapterRef = useRef(false);
   const lastBookIdRef = useRef<string | null>(null);
   const lastRequestedChapterIdRef = useRef<string | null>(null);
 
-  const saveProgress = useCallback(async (position: number, completed = false) => {
-    if (!book || !currentChapter) return;
-    const sessionId = getSessionId();
-    if (!sessionId) return;
-
-    try {
-      await fetch(`/api/books/${book.id}/progress`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-          sessionId, 
-          chapterId: currentChapter.id,
-          position, 
-          completed,
-        }),
-      });
-      onProgressUpdate();
-    } catch (err) {
-      console.error("Failed to save progress:", err);
-    }
-  }, [book, currentChapter, onProgressUpdate]);
-
   const loadChapter = useCallback(async (chapterId?: string, seekPosition?: number) => {
     if (!book || isLoadingChapterRef.current) return;
-    
-    // Save progress of current chapter before switching
-    if (currentChapter && audioRef.current) {
-      await saveProgress(audioRef.current.currentTime);
-    }
     
     isLoadingChapterRef.current = true;
     setLoading(true);
@@ -103,7 +73,7 @@ export function GlobalAudioPlayer() {
       setLoading(false);
       isLoadingChapterRef.current = false;
     }
-  }, [book, currentChapter, saveProgress, setContextChapterId]);
+  }, [book, setContextChapterId]);
 
   const goToNextChapter = useCallback(async () => {
     if (!book || !currentChapter) return;
@@ -112,9 +82,8 @@ export function GlobalAudioPlayer() {
       await loadChapter(nextChapter.id);
     } else {
       setContextIsPlaying(false);
-      saveProgress(currentChapter.duration, true);
     }
-  }, [book, currentChapter, loadChapter, saveProgress, setContextIsPlaying]);
+  }, [book, currentChapter, loadChapter, setContextIsPlaying]);
 
   const goToPrevChapter = useCallback(async () => {
     if (!book || !currentChapter) return;
@@ -208,16 +177,6 @@ export function GlobalAudioPlayer() {
     }
   }, [requestedChapterId, currentChapter, book, loadChapter]);
 
-  // Register save progress callback so context can trigger saves before switching books
-  useEffect(() => {
-    const saveCurrentProgress = async () => {
-      if (currentChapter && audioRef.current) {
-        await saveProgress(audioRef.current.currentTime);
-      }
-    };
-    registerSaveProgressCallback(saveCurrentProgress);
-  }, [currentChapter, saveProgress, registerSaveProgressCallback]);
-
   // Auto-play when audio is loaded
   useEffect(() => {
     if (audioUrl && audioRef.current && !loading) {
@@ -238,14 +197,7 @@ export function GlobalAudioPlayer() {
 
   const handleTimeUpdate = () => {
     if (audioRef.current) {
-      const time = audioRef.current.currentTime;
-      setCurrentTime(time);
-      
-      const now = Date.now();
-      if (now - lastSaveRef.current > 10000) {
-        lastSaveRef.current = now;
-        saveProgress(time);
-      }
+      setCurrentTime(audioRef.current.currentTime);
     }
   };
 
@@ -274,9 +226,6 @@ export function GlobalAudioPlayer() {
   };
 
   const handleClose = () => {
-    if (currentChapter) {
-      saveProgress(currentTime);
-    }
     closePlayer();
   };
 
@@ -286,9 +235,6 @@ export function GlobalAudioPlayer() {
 
   const handlePause = () => {
     setContextIsPlaying(false);
-    if (currentChapter) {
-      saveProgress(currentTime);
-    }
   };
 
   const handleEnded = () => {
