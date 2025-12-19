@@ -85,8 +85,8 @@ export function BookCard({ book, onDelete, showEditButton }: BookCardProps) {
   }
 
   return (
-    <Card className="overflow-hidden transition-shadow hover:shadow-md">
-      <div className="aspect-square relative bg-muted flex items-center justify-center">
+    <Card className="overflow-hidden transition-shadow hover:shadow-md pt-0">
+      <div className="aspect-video relative bg-muted flex items-center justify-center">
         {book.coverUrl ? (
           <img
             src={book.coverUrl}

@@ -496,7 +496,7 @@ export function AdminBookForm({ mode, bookId, initialData, onSuccess }: AdminBoo
               </Button>
             )}
             <p className="text-xs text-muted-foreground">
-              Recommended: 500×500px or larger, 1:1 ratio. JPG, PNG, or WebP.
+              Recommended: 1280×720px or larger, 16:9 ratio. JPG, PNG, or WebP.
             </p>
           </div>
 
