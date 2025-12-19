@@ -1,36 +1,16 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { Book } from "@/lib/types";
 import { BookCard } from "./book-card";
+import { useAdminBooks } from "@/lib/queries/admin";
 
 export function AdminBookList() {
-  const [books, setBooks] = useState<Book[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  const fetchBooks = async () => {
-    try {
-      const res = await fetch("/api/books");
-      if (res.ok) {
-        const data = await res.json();
-        setBooks(data);
-      }
-    } catch (err) {
-      console.error("Failed to fetch books:", err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchBooks();
-  }, []);
+  const { data: books, isLoading } = useAdminBooks();
 
   const handleDelete = (bookId: string) => {
-    setBooks((prev) => prev.filter((b) => b.id !== bookId));
+    // Cache will be automatically invalidated by useDeleteBook mutation
   };
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="text-center py-8 text-muted-foreground">
         Loading books...
@@ -38,7 +18,7 @@ export function AdminBookList() {
     );
   }
 
-  if (books.length === 0) {
+  if (!books || books.length === 0) {
     return (
       <div className="text-center py-8 text-muted-foreground">
         No audiobooks yet. Upload one above.

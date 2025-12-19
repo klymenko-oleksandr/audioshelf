@@ -5,6 +5,7 @@ import { ThemeProvider } from "@/components/theme-provider";
 import { AudioPlayerProvider } from "@/components/audio-player-context";
 import { GlobalAudioPlayer } from "@/components/global-audio-player";
 import { AudioProgressPersister } from "@/components/audio-progress-persister";
+import { QueryProvider } from "@/components/query-provider";
 
 const jetbrainsMono = JetBrains_Mono({subsets:['latin'],variable:'--font-sans'});
 
@@ -33,18 +34,20 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <ThemeProvider
-          attribute="class"
-          defaultTheme="system"
-          enableSystem
-          disableTransitionOnChange
-        >
-          <AudioPlayerProvider>
-            {children}
-            <GlobalAudioPlayer />
-            <AudioProgressPersister />
-          </AudioPlayerProvider>
-        </ThemeProvider>
+        <QueryProvider>
+          <ThemeProvider
+            attribute="class"
+            defaultTheme="system"
+            enableSystem
+            disableTransitionOnChange
+          >
+            <AudioPlayerProvider>
+              {children}
+              <GlobalAudioPlayer />
+              <AudioProgressPersister />
+            </AudioPlayerProvider>
+          </ThemeProvider>
+        </QueryProvider>
       </body>
     </html>
   );

@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import { Book } from "@/lib/types";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -18,6 +17,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { useAudioPlayer } from "./audio-player-context";
+import { useDeleteBook } from "@/lib/queries/admin";
 
 interface BookCardProps {
   book: Book;
@@ -36,25 +36,18 @@ function formatDuration(seconds: number): string {
 }
 
 export function BookCard({ book, onDelete, showEditButton, hidePlayButton = false }: BookCardProps) {
-  const [isDeleting, setIsDeleting] = useState(false);
   const { currentBook, isPlaying, playBook, togglePlayPause } = useAudioPlayer();
+  const deleteBook = useDeleteBook();
   const hasChapters = book.chapters && book.chapters.length > 0;
   const isCurrentBook = currentBook?.id === book.id;
   const isThisBookPlaying = isCurrentBook && isPlaying;
 
   const handleDelete = async () => {
-    setIsDeleting(true);
     try {
-      const res = await fetch(`/api/admin/books/${book.id}`, {
-        method: "DELETE",
-      });
-      if (res.ok) {
-        onDelete?.(book.id);
-      }
+      await deleteBook.mutateAsync(book.id);
+      onDelete?.(book.id);
     } catch (err) {
       console.error("Failed to delete book:", err);
-    } finally {
-      setIsDeleting(false);
     }
   };
 
@@ -89,9 +82,9 @@ export function BookCard({ book, onDelete, showEditButton, hidePlayButton = fals
                   size="icon"
                   variant="secondary"
                   className="rounded-full shadow-lg h-8 w-8"
-                  disabled={isDeleting}
+                  disabled={deleteBook.isPending}
                 >
-                  {isDeleting ? (
+                  {deleteBook.isPending ? (
                     <Loader2 className="w-3 h-3 animate-spin" />
                   ) : (
                     <Trash2 className="w-3 h-3" />

@@ -1,13 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { Book } from "@/lib/types";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import { useAudioPlayer } from "@/components/audio-player-context";
 import { ArrowLeft, Music, Play, Pause, Clock } from "lucide-react";
+import { useBook } from "@/lib/queries/books";
 
 function formatDuration(seconds: number): string {
   const hours = Math.floor(seconds / 3600);
@@ -31,38 +29,12 @@ function formatDurationLong(seconds: number): string {
 export default function BookDetailsPage() {
   const params = useParams();
   const bookId = params.id as string;
-  const [book, setBook] = useState<Book | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { data: book, isLoading, error } = useBook(bookId);
   
   const { currentBook, currentChapterId, isPlaying, playBook, playChapter, togglePlayPause } = useAudioPlayer();
 
   const isCurrentBook = currentBook?.id === bookId;
   const isThisBookPlaying = isCurrentBook && isPlaying;
-
-  useEffect(() => {
-    const fetchBook = async () => {
-      try {
-        const res = await fetch(`/api/books/${bookId}`);
-        if (!res.ok) {
-          if (res.status === 404) {
-            setError("Book not found");
-          } else {
-            setError("Failed to load book");
-          }
-          return;
-        }
-        const data = await res.json();
-        setBook(data);
-      } catch (err) {
-        setError("Failed to load book");
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchBook();
-  }, [bookId]);
 
   const handlePlayBook = () => {
     if (!book) return;
@@ -85,7 +57,7 @@ export default function BookDetailsPage() {
     }
   };
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-muted-foreground">Loading...</div>
@@ -97,7 +69,7 @@ export default function BookDetailsPage() {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
-          <p className="text-red-500 mb-4">{error || "Book not found"}</p>
+          <p className="text-red-500 mb-4">{error?.message || "Book not found"}</p>
           <Link href="/" className="text-primary underline">
             Back to Library
           </Link>

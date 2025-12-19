@@ -1,32 +1,12 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
-import { Book } from "@/lib/types";
 import { BookList } from "./book-list";
 import packageJson from "@/package.json";
 import { ThemeToggle } from "./theme-toggle";
+import { useBooks } from "@/lib/queries/books";
 
 export function HomePage() {
-  const [books, setBooks] = useState<Book[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const fetchBooks = useCallback(async () => {
-    try {
-      const res = await fetch("/api/books");
-      if (!res.ok) throw new Error("Failed to fetch books");
-      const booksData: Book[] = await res.json();
-      setBooks(booksData);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load books");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchBooks();
-  }, [fetchBooks]);
+  const { data: books, isLoading, error } = useBooks();
 
   return (
     <div className="min-h-screen bg-background">
@@ -41,7 +21,7 @@ export function HomePage() {
       </header>
 
       <main className="max-w-screen-xl mx-auto px-4 py-8 pb-32">
-        {loading && (
+        {isLoading && (
           <div className="text-center py-12 text-muted-foreground">
             Loading audiobooks...
           </div>
@@ -49,11 +29,11 @@ export function HomePage() {
 
         {error && (
           <div className="text-center py-12 text-red-500">
-            {error}
+            {error.message || "Failed to load books"}
           </div>
         )}
 
-        {!loading && !error && (
+        {!isLoading && !error && books && (
           <BookList books={books} />
         )}
       </main>

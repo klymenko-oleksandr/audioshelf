@@ -2,6 +2,7 @@ export interface Chapter {
   id: string;
   title: string;
   order: number;
+  objectKey: string;
   duration: number;
   mimeType: string;
 }
@@ -18,6 +19,7 @@ export interface Book {
   author: string;
   description: string | null;
   coverUrl: string | null;
+  coverObjectKey: string | null; // S3 object key - @todo: verify
   totalDuration: number;
   createdAt: string;
   chapters: Chapter[];

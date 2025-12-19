@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { useAudioPlayer } from "./audio-player-context";
-import { getSessionId } from "@/lib/session";
+import { useSaveProgress } from "@/lib/queries/books";
 
 /**
  * AudioProgressPersister
@@ -14,6 +14,7 @@ import { getSessionId } from "@/lib/session";
  */
 export function AudioProgressPersister() {
   const { currentBook, currentChapterId, isPlaying } = useAudioPlayer();
+  const saveProgress = useSaveProgress();
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   
@@ -40,58 +41,29 @@ export function AudioProgressPersister() {
       intervalRef.current = null;
     }
 
-    // Save immediately when state changes (pause, chapter switch, book switch)
-    const saveImmediately = async () => {
-      const audio = audioRef.current;
-      if (!audio || !currentBook || !currentChapterId) return;
-      
-      const sessionId = getSessionId();
-      if (!sessionId) return;
-
-      try {
-        await fetch(`/api/books/${currentBook.id}/progress`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            sessionId,
-            chapterId: currentChapterId,
-            position: audio.currentTime,
-            completed: false,
-          }),
-        });
-      } catch (err) {
-        console.error("Failed to save progress:", err);
-      }
-    };
-
     // Save immediately on any state change
     if (currentBook && currentChapterId && audioRef.current) {
-      saveImmediately();
+      const audio = audioRef.current;
+      saveProgress.mutate({
+        bookId: currentBook.id,
+        chapterId: currentChapterId,
+        position: audio.currentTime,
+        completed: false,
+      });
     }
 
     // Only set up interval when playing
     if (isPlaying && currentBook && currentChapterId && audioRef.current) {
-      intervalRef.current = setInterval(async () => {
+      intervalRef.current = setInterval(() => {
         const audio = audioRef.current;
         if (!audio || !currentBook || !currentChapterId) return;
         
-        const sessionId = getSessionId();
-        if (!sessionId) return;
-
-        try {
-          await fetch(`/api/books/${currentBook.id}/progress`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              sessionId,
-              chapterId: currentChapterId,
-              position: audio.currentTime,
-              completed: false,
-            }),
-          });
-        } catch (err) {
-          console.error("Failed to auto-save progress:", err);
-        }
+        saveProgress.mutate({
+          bookId: currentBook.id,
+          chapterId: currentChapterId,
+          position: audio.currentTime,
+          completed: false,
+        });
       }, 5000); // Save every 5 seconds
     }
 
