@@ -36,24 +36,22 @@ export default function BookDetailsPage() {
   const isCurrentBook = currentBook?.id === bookId;
   const isThisBookPlaying = isCurrentBook && isPlaying;
 
-  const handlePlayBook = () => {
+  const handlePlayBook = async () => {
     if (!book) return;
     if (isCurrentBook) {
       togglePlayPause();
     } else {
-      playBook(book);
+      await playBook(book);
     }
   };
 
-  const handlePlayChapter = (chapterId: string) => {
+  const handlePlayChapter = async (chapterId: string) => {
     if (!book) return;
     const isThisChapterPlaying = isCurrentBook && currentChapterId === chapterId && isPlaying;
     if (isThisChapterPlaying) {
       togglePlayPause();
-    } else if (isCurrentBook) {
-      playChapter(chapterId);
     } else {
-      playBook(book, chapterId);
+      playChapter(book, chapterId);
     }
   };
 

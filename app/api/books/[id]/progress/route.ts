@@ -80,6 +80,7 @@ export async function POST(
           bookId: id,
         },
       },
+      // @todo: verify why do we need update and create
       update: {
         currentChapterId: chapterId,
         position,

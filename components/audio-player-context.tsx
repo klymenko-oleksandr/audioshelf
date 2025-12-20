@@ -4,17 +4,19 @@ import { createContext, ReactNode, useCallback, useContext, useReducer } from 'r
 import { Book } from '@/lib/types';
 import audioPlayerReducer from './audio-player/audioPlayerReducer';
 import { AudioPlayerState } from './audio-player/audio-player.model';
+import { API_PATHS } from '@/lib/api-paths';
+import { getSessionId } from '@/lib/session';
 
 interface AudioPlayerContextType {
   currentBook: Book | null;
   currentChapterId: string | null;
+  currentChapterInitialPosition: number;
   isPlaying: boolean;
-  playBook: (book: Book, chapterId?: string) => void;
-  playChapter: (chapterId: string) => void;
+  playBook: (book: Book) => Promise<void>;
+  playChapter: (book: Book, chapterId: string) => void;
   togglePlayPause: () => void;
   closePlayer: () => void;
   setIsPlaying: (playing: boolean) => void;
-  setCurrentChapterId: (chapterId: string | null) => void;
 }
 
 const AudioPlayerContext = createContext<AudioPlayerContextType | null>(null);
@@ -22,19 +24,43 @@ const AudioPlayerContext = createContext<AudioPlayerContextType | null>(null);
 const initialState: AudioPlayerState = {
   currentBook: null,
   currentChapterId: null,
+  currentChapterInitialPosition: 0,
   isPlaying: false,
 };
 
 export function AudioPlayerProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(audioPlayerReducer, initialState);
-  const { currentBook, currentChapterId, isPlaying } = state;
+  const { currentBook, currentChapterId, currentChapterInitialPosition, isPlaying } = state;
 
-  const playBook = useCallback((book: Book, chapterId?: string) => {
-    dispatch({ type: 'PLAY_BOOK', payload: { book, chapterId } });
+  const playBook = useCallback(async (book: Book) => {
+    const sessionId = getSessionId();
+    
+    let chapterId = book.chapters[0]?.id;
+    let initialPosition = 0;
+    
+    if (sessionId) {
+      try {
+        const progressRes = await fetch(`${API_PATHS.books.progress(book.id)}?sessionId=${sessionId}`);
+        if (progressRes.ok) {
+          const progressData = await progressRes.json();
+          if (progressData.currentChapterId && !progressData.completed) {
+            chapterId = progressData.currentChapterId;
+            initialPosition = progressData.position;
+          }
+        }
+      } catch (err) {
+        console.error("Failed to fetch progress:", err);
+      }
+    }
+
+    dispatch({ 
+      type: 'PLAY_BOOK', 
+      payload: { book, chapterId, initialPosition } 
+    });
   }, []);
 
-  const playChapter = useCallback((chapterId: string) => {
-    dispatch({ type: 'PLAY_CHAPTER', payload: chapterId });
+  const playChapter = useCallback((book: Book, chapterId: string) => {
+    dispatch({ type: 'PLAY_CHAPTER', payload: { book, chapterId } });
   }, []);
 
   const togglePlayPause = useCallback(() => {
@@ -49,24 +75,18 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
     dispatch({ type: 'SET_PLAYING', payload: playing });
   }, []);
 
-  const setCurrentChapterId = useCallback((chapterId: string | null) => {
-    if (chapterId) {
-      dispatch({ type: 'PLAY_CHAPTER', payload: chapterId });
-    }
-  }, []);
-
   return (
     <AudioPlayerContext.Provider
       value={{
         currentBook,
         currentChapterId,
+        currentChapterInitialPosition,
         isPlaying,
         playBook,
         playChapter,
         togglePlayPause,
         closePlayer,
         setIsPlaying,
-        setCurrentChapterId,
       }}
     >
       {children}

@@ -1,10 +1,10 @@
 "use client";
 
-import { useRef, useState, useEffect, useCallback } from "react";
-import { Button } from "@/components/ui/button";
-import { Play, Pause, X, Volume2, VolumeX, SkipBack, SkipForward } from "lucide-react";
-import { getSessionId } from "@/lib/session";
-import { useAudioPlayer } from "./audio-player-context";
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Button } from '@/components/ui/button';
+import { Pause, Play, SkipBack, SkipForward, Volume2, VolumeX, X } from 'lucide-react';
+import { useAudioPlayer } from './audio-player-context';
+import { usePlayUrl } from '@/lib/queries/books';
 
 interface CurrentChapter {
   id: string;
@@ -17,48 +17,38 @@ export function GlobalAudioPlayer() {
   const { 
     currentBook: book, 
     currentChapterId: requestedChapterId,
+    currentChapterInitialPosition,
     isPlaying: contextIsPlaying,
     closePlayer,
     setIsPlaying: setContextIsPlaying,
-    setCurrentChapterId: setContextChapterId,
+    playChapter,
   } = useAudioPlayer();
+
+  const playUrlMutation = usePlayUrl();
 
   const audioRef = useRef<HTMLAudioElement>(null);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [muted, setMuted] = useState(false);
   const [initialPosition, setInitialPosition] = useState<number | null>(null);
   const [currentChapter, setCurrentChapter] = useState<CurrentChapter | null>(null);
   const [totalChapters, setTotalChapters] = useState(0);
-  const isLoadingChapterRef = useRef(false);
   const lastBookIdRef = useRef<string | null>(null);
   const lastRequestedChapterIdRef = useRef<string | null>(null);
 
-  const loadChapter = useCallback(async (chapterId?: string, seekPosition?: number) => {
-    if (!book || isLoadingChapterRef.current) return;
-    
-    isLoadingChapterRef.current = true;
-    setLoading(true);
-    setError(null);
+  const loadChapter = useCallback(async (chapterId: string, seekPosition?: number) => {
+    if (!book || playUrlMutation.isPending) return;
 
     try {
-      const playRes = await fetch(`/api/books/${book.id}/play-url`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ chapterId }),
+      const playData = await playUrlMutation.mutateAsync({
+        bookId: book.id,
+        chapterId,
       });
-
-      if (!playRes.ok) throw new Error("Failed to get play URL");
-      const playData = await playRes.json();
       
       setAudioUrl(playData.playUrl);
       setCurrentChapter(playData.chapter);
       setTotalChapters(playData.totalChapters);
-      // Sync chapter ID back to context so other components know which chapter is playing
-      setContextChapterId(playData.chapter.id);
       
       if (seekPosition !== undefined && seekPosition > 0) {
         setInitialPosition(seekPosition);
@@ -68,24 +58,21 @@ export function GlobalAudioPlayer() {
         setCurrentTime(0);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load chapter");
-    } finally {
-      setLoading(false);
-      isLoadingChapterRef.current = false;
+      // Error is handled by mutation state
     }
-  }, [book, setContextChapterId]);
+  }, [book, playUrlMutation]);
 
-  const goToNextChapter = useCallback(async () => {
+  const goToNextChapter = useCallback(() => {
     if (!book || !currentChapter) return;
     const nextChapter = book.chapters.find(ch => ch.order === currentChapter.order + 1);
     if (nextChapter) {
-      await loadChapter(nextChapter.id);
+      playChapter(book, nextChapter.id);
     } else {
       setContextIsPlaying(false);
     }
-  }, [book, currentChapter, loadChapter, setContextIsPlaying]);
+  }, [book, currentChapter, playChapter, setContextIsPlaying]);
 
-  const goToPrevChapter = useCallback(async () => {
+  const goToPrevChapter = useCallback(() => {
     if (!book || !currentChapter) return;
     if (currentTime > 3) {
       if (audioRef.current) {
@@ -96,24 +83,24 @@ export function GlobalAudioPlayer() {
     }
     const prevChapter = book.chapters.find(ch => ch.order === currentChapter.order - 1);
     if (prevChapter) {
-      await loadChapter(prevChapter.id);
+      playChapter(book, prevChapter.id);
     }
-  }, [book, currentChapter, currentTime, loadChapter]);
+  }, [book, currentChapter, currentTime, playChapter]);
 
   // Sync audio element with context isPlaying state
   useEffect(() => {
-    if (!audioRef.current || loading) return;
+    if (!audioRef.current || playUrlMutation.isPending) return;
     
     if (contextIsPlaying && audioRef.current.paused) {
       audioRef.current.play().catch(() => {});
     } else if (!contextIsPlaying && !audioRef.current.paused) {
       audioRef.current.pause();
     }
-  }, [contextIsPlaying, loading]);
+  }, [contextIsPlaying, playUrlMutation.isPending]);
 
-  // Handle book changes
+  // Handle book/chapter changes from context
   useEffect(() => {
-    if (!book) {
+    if (!book || !requestedChapterId) {
       setAudioUrl(null);
       setCurrentTime(0);
       setDuration(0);
@@ -128,61 +115,20 @@ export function GlobalAudioPlayer() {
     const isNewBook = book.id !== lastBookIdRef.current;
     const isNewChapterRequest = requestedChapterId !== lastRequestedChapterIdRef.current;
 
-    if (isNewBook || (isNewChapterRequest && requestedChapterId)) {
+    if (isNewBook || isNewChapterRequest) {
       lastBookIdRef.current = book.id;
       lastRequestedChapterIdRef.current = requestedChapterId;
-
-      const fetchProgressAndLoadChapter = async () => {
-        const sessionId = getSessionId();
-        
-        let savedChapterId: string | undefined = requestedChapterId ?? undefined;
-        let savedPosition = 0;
-        
-        if (!requestedChapterId && sessionId) {
-          try {
-            const progressRes = await fetch(`/api/books/${book.id}/progress?sessionId=${sessionId}`);
-            if (progressRes.ok) {
-              const progressData = await progressRes.json();
-              if (progressData.currentChapterId && !progressData.completed) {
-                savedChapterId = progressData.currentChapterId;
-                savedPosition = progressData.position;
-              }
-            }
-          } catch (err) {
-            console.error("Failed to fetch progress:", err);
-          }
-        }
-
-        await loadChapter(savedChapterId, savedPosition);
-      };
-
-      fetchProgressAndLoadChapter();
+      loadChapter(requestedChapterId, currentChapterInitialPosition);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [book, requestedChapterId]);
+  }, [book, requestedChapterId, currentChapterInitialPosition, loadChapter]);
 
-  // Handle chapter change requests from context (for switching chapters within the same book)
-  useEffect(() => {
-    // Only handle explicit chapter switches, not initial load
-    // The book change effect handles initial load with saved position
-    if (
-      requestedChapterId && 
-      currentChapter && 
-      requestedChapterId !== currentChapter.id &&
-      book?.id === lastBookIdRef.current &&
-      lastRequestedChapterIdRef.current !== requestedChapterId
-    ) {
-      lastRequestedChapterIdRef.current = requestedChapterId;
-      loadChapter(requestedChapterId);
-    }
-  }, [requestedChapterId, currentChapter, book, loadChapter]);
 
-  // Auto-play when audio is loaded
+  // Autoplay when audio is loaded
   useEffect(() => {
-    if (audioUrl && audioRef.current && !loading) {
+    if (audioUrl && audioRef.current && !playUrlMutation.isPending) {
       audioRef.current.play().catch(() => {});
     }
-  }, [audioUrl, loading]);
+  }, [audioUrl, playUrlMutation.isPending]);
 
   // Seek to initial position when metadata is loaded
   const handleLoadedMetadata = () => {
@@ -276,7 +222,7 @@ export function GlobalAudioPlayer() {
                 variant="ghost"
                 size="icon"
                 onClick={goToPrevChapter}
-                disabled={loading || !currentChapter || currentChapter.order === 1}
+                disabled={playUrlMutation.isPending || !currentChapter || currentChapter.order === 1}
               >
                 <SkipBack className="w-4 h-4" />
               </Button>
@@ -286,9 +232,9 @@ export function GlobalAudioPlayer() {
               variant="ghost"
               size="icon"
               onClick={handlePlayPause}
-              disabled={loading || !!error}
+              disabled={playUrlMutation.isPending || !!playUrlMutation.error}
             >
-              {loading ? (
+              {playUrlMutation.isPending ? (
                 <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
               ) : contextIsPlaying ? (
                 <Pause className="w-5 h-5" />
@@ -302,7 +248,7 @@ export function GlobalAudioPlayer() {
                 variant="ghost"
                 size="icon"
                 onClick={goToNextChapter}
-                disabled={loading || !currentChapter || currentChapter.order === totalChapters}
+                disabled={playUrlMutation.isPending || !currentChapter || currentChapter.order === totalChapters}
               >
                 <SkipForward className="w-4 h-4" />
               </Button>
@@ -320,7 +266,7 @@ export function GlobalAudioPlayer() {
               value={currentTime}
               onChange={handleSeek}
               className="flex-1 h-1 bg-muted rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:bg-primary [&::-webkit-slider-thumb]:rounded-full"
-              disabled={loading || !!error}
+              disabled={playUrlMutation.isPending || !!playUrlMutation.error}
             />
             <span className="text-xs text-muted-foreground w-10">
               {formatTime(duration)}
@@ -350,8 +296,10 @@ export function GlobalAudioPlayer() {
           </div>
         </div>
 
-        {error && (
-          <p className="text-xs text-red-500 mt-1">{error}</p>
+        {playUrlMutation.error && (
+          <p className="text-xs text-red-500 mt-1">
+            {playUrlMutation.error?.message || "Failed to load chapter"}
+          </p>
         )}
       </div>
     </div>

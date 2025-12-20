@@ -6,14 +6,17 @@ export default function audioPlayerReducer(state: AudioPlayerState, action: Audi
       return {
         ...state,
         currentBook: action.payload.book,
-        currentChapterId: action.payload.chapterId ?? null,
+        currentChapterId: action.payload.chapterId,
+        currentChapterInitialPosition: action.payload.initialPosition,
         isPlaying: true,
       };
     
     case 'PLAY_CHAPTER':
       return {
         ...state,
-        currentChapterId: action.payload,
+        currentBook: action.payload.book,
+        currentChapterId: action.payload.chapterId,
+        currentChapterInitialPosition: 0,
         isPlaying: true,
       };
     
@@ -33,6 +36,7 @@ export default function audioPlayerReducer(state: AudioPlayerState, action: Audi
       return {
         currentBook: null,
         currentChapterId: null,
+        currentChapterInitialPosition: 0,
         isPlaying: false,
       };
     

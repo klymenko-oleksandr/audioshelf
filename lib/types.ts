@@ -2,7 +2,7 @@ export interface Chapter {
   id: string;
   title: string;
   order: number;
-  objectKey: string;
+  objectKey: string; // S3 object key - @todo: verify
   duration: number;
   mimeType: string;
 }

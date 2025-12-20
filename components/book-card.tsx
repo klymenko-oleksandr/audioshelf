@@ -135,12 +135,12 @@ export function BookCard({ book, onDelete, showEditButton, hidePlayButton = fals
             size="sm"
             variant={isThisBookPlaying ? "default" : "outline"}
             className="w-full"
-            onClick={(e) => {
+            onClick={async (e) => {
               e.preventDefault();
               if (isCurrentBook) {
                 togglePlayPause();
               } else {
-                playBook(book);
+                await playBook(book);
               }
             }}
           >

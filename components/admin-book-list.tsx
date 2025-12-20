@@ -33,7 +33,7 @@ export function AdminBookList() {
           key={book.id}
           book={book}
           onDelete={handleDelete}
-          showEditButton={true}
+          showEditButton={false}
           hidePlayButton={true}
         />
       ))}

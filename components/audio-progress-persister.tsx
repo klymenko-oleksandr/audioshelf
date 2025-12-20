@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAudioPlayer } from "./audio-player-context";
 import { useSaveProgress } from "@/lib/queries/books";
 
@@ -16,14 +16,14 @@ export function AudioProgressPersister() {
   const { currentBook, currentChapterId, isPlaying } = useAudioPlayer();
   const saveProgress = useSaveProgress();
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [audioElement, setAudioElement] = useState<HTMLAudioElement | null>(null);
   
-  // Find and cache the audio element reference
+  // Find and track the audio element
   useEffect(() => {
     const findAudioElement = () => {
       const audio = document.querySelector('audio');
-      if (audio) {
-        audioRef.current = audio;
+      if (audio && audio !== audioElement) {
+        setAudioElement(audio);
       }
     };
     
@@ -32,7 +32,7 @@ export function AudioProgressPersister() {
     const checkInterval = setInterval(findAudioElement, 1000);
     
     return () => clearInterval(checkInterval);
-  }, []);
+  }, [audioElement]);
 
   useEffect(() => {
     // Clear any existing interval
@@ -41,27 +41,15 @@ export function AudioProgressPersister() {
       intervalRef.current = null;
     }
 
-    // Save immediately on any state change
-    if (currentBook && currentChapterId && audioRef.current) {
-      const audio = audioRef.current;
-      saveProgress.mutate({
-        bookId: currentBook.id,
-        chapterId: currentChapterId,
-        position: audio.currentTime,
-        completed: false,
-      });
-    }
-
-    // Only set up interval when playing
-    if (isPlaying && currentBook && currentChapterId && audioRef.current) {
+    // Only set up interval when playing and audio element is available
+    if (isPlaying && currentBook && currentChapterId && audioElement) {
       intervalRef.current = setInterval(() => {
-        const audio = audioRef.current;
-        if (!audio || !currentBook || !currentChapterId) return;
+        if (!audioElement || !currentBook || !currentChapterId) return;
         
         saveProgress.mutate({
           bookId: currentBook.id,
           chapterId: currentChapterId,
-          position: audio.currentTime,
+          position: audioElement.currentTime,
           completed: false,
         });
       }, 5000); // Save every 5 seconds
@@ -72,7 +60,8 @@ export function AudioProgressPersister() {
         clearInterval(intervalRef.current);
       }
     };
-  }, [isPlaying, currentBook, currentChapterId]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isPlaying, currentBook, currentChapterId, audioElement]);
 
   return null; // Invisible component
 }
