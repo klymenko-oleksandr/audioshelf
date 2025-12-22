@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono, JetBrains_Mono } from "next/font/google";
+import { SpeedInsights } from "@vercel/speed-insights/next"
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
 import { AudioPlayerProvider } from "@/components/audio-player-context";
@@ -52,6 +53,7 @@ export default function RootLayout({
             </AudioPlayerProvider>
           </ThemeProvider>
         </QueryProvider>
+        <SpeedInsights />
       </body>
     </html>
   );
