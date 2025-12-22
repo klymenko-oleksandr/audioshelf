@@ -1,10 +1,23 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { createPlayUrl } from "@/lib/s3";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    const searchParams = request.nextUrl.searchParams;
+    const search = searchParams.get("search");
+
+    const whereClause = search
+      ? {
+          OR: [
+            { title: { contains: search, mode: "insensitive" as const } },
+            { author: { contains: search, mode: "insensitive" as const } },
+          ],
+        }
+      : {};
+
     const books = await db.book.findMany({
+      where: whereClause,
       include: {
         chapters: {
           select: {
