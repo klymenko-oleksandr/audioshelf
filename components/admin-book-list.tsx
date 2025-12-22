@@ -1,13 +1,23 @@
 "use client";
 
-import { BookCard } from "./book-card";
-import { useAdminBooks } from "@/lib/queries/admin";
+import { useAdminBooks, useDeleteBook } from "@/lib/queries/admin";
+import { Button } from "./ui/button";
+import { Pencil, Trash2 } from "lucide-react";
+import Link from "next/link";
 
 export function AdminBookList() {
   const { data: books, isLoading } = useAdminBooks();
+  const deleteBook = useDeleteBook();
 
-  const handleDelete = (bookId: string) => {
-    // Cache will be automatically invalidated by useDeleteBook mutation
+  const handleDelete = async (bookId: string, title: string) => {
+    if (confirm(`Are you sure you want to delete "${title}"?`)) {
+      try {
+        await deleteBook.mutateAsync(bookId);
+      } catch (error) {
+        console.error("Failed to delete book:", error);
+        alert("Failed to delete book. Please try again.");
+      }
+    }
   };
 
   if (isLoading) {
@@ -27,15 +37,31 @@ export function AdminBookList() {
   }
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+    <div className="border rounded-lg divide-y">
       {books.map((book) => (
-        <BookCard
+        <div
           key={book.id}
-          book={book}
-          onDelete={handleDelete}
-          showEditButton={false}
-          hidePlayButton={true}
-        />
+          className="flex items-center justify-between p-4 hover:bg-muted/50 transition-colors"
+        >
+          <h3 className="font-medium">{book.title}</h3>
+          <div className="flex items-center gap-2">
+            <Link href={`/admin/books/${book.id}/edit`}>
+              <Button variant="outline" size="sm">
+                <Pencil />
+                Edit
+              </Button>
+            </Link>
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={() => handleDelete(book.id, book.title)}
+              disabled={deleteBook.isPending}
+            >
+              <Trash2 />
+              Delete
+            </Button>
+          </div>
+        </div>
       ))}
     </div>
   );

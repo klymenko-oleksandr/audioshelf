@@ -7,7 +7,7 @@ export default function AdminPage() {
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b">
-        <div className="max-w-screen-xl mx-auto px-4 py-6 flex items-center justify-between">
+        <div className="max-w-screen-xl mx-auto p-4 flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold">Admin Dashboard</h1>
             <p className="text-muted-foreground">Manage your audiobook library</p>

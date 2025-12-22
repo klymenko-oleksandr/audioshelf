@@ -1,7 +1,6 @@
 "use client";
 
 import { BookList } from "./book-list";
-import packageJson from "@/package.json";
 import { ThemeToggle } from "./theme-toggle";
 import { useBooks } from "@/lib/queries/books";
 
@@ -11,7 +10,7 @@ export function HomePage() {
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b">
-        <div className="max-w-screen-xl mx-auto px-4 py-6 flex items-center justify-between">
+        <div className="max-w-screen-xl mx-auto p-4 flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold">Audio Shelf</h1>
             <p className="text-muted-foreground">Your audiobook library</p>
@@ -20,7 +19,7 @@ export function HomePage() {
         </div>
       </header>
 
-      <main className="max-w-screen-xl mx-auto px-4 py-8 pb-32">
+      <main className="max-w-screen-xl mx-auto px-4 py-8">
         {isLoading && (
           <div className="text-center py-12 text-muted-foreground">
             Loading audiobooks...
@@ -37,10 +36,6 @@ export function HomePage() {
           <BookList books={books} />
         )}
       </main>
-
-      <footer className="fixed bottom-0 right-0 p-2 text-xs text-muted-foreground/50 z-40">
-        v{packageJson.version}
-      </footer>
     </div>
   );
 }

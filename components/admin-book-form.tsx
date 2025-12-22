@@ -117,11 +117,11 @@ export function AdminBookForm({ mode, bookId, initialData, onSuccess }: AdminBoo
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
       const duration = await getAudioDuration(file);
-      const chapterNumber = chapters.length + newChapters.length + 1;
+      const fileNameWithoutExt = file.name.replace(/\.[^/.]+$/, "");
       newChapters.push({
         tempId: crypto.randomUUID(),
         file,
-        title: `Chapter ${chapterNumber}`,
+        title: fileNameWithoutExt,
         duration,
       });
     }

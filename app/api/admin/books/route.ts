@@ -2,6 +2,28 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { createBookSchema } from "@/lib/validators";
 
+export async function GET() {
+  try {
+    const books = await db.book.findMany({
+      select: {
+        id: true,
+        title: true,
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+    });
+
+    return NextResponse.json(books);
+  } catch (error) {
+    console.error("Failed to fetch books:", error);
+    return NextResponse.json(
+      { error: "Failed to fetch books" },
+      { status: 500 }
+    );
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();

@@ -6,6 +6,7 @@ import { AudioPlayerProvider } from "@/components/audio-player-context";
 import { GlobalAudioPlayer } from "@/components/global-audio-player";
 import { AudioProgressPersister } from "@/components/audio-progress-persister";
 import { QueryProvider } from "@/components/query-provider";
+import packageJson from "@/package.json";
 
 const jetbrainsMono = JetBrains_Mono({subsets:['latin'],variable:'--font-sans'});
 
@@ -45,6 +46,9 @@ export default function RootLayout({
               {children}
               <GlobalAudioPlayer />
               <AudioProgressPersister />
+              <footer className="fixed bottom-0 right-0 p-2 text-xs text-muted-foreground/50 z-40">
+                v{packageJson.version}
+              </footer>
             </AudioPlayerProvider>
           </ThemeProvider>
         </QueryProvider>

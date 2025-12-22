@@ -107,7 +107,7 @@ export function BookCard({ book, onDelete, showEditButton, hidePlayButton = fals
           )}
         </div>
       </div>
-      <Link href={`/books/${book.id}`}>
+      <Link href={`/books/${book.id}`} className="mt-auto">
         <CardContent className="p-4 hover:bg-muted/50 transition-colors">
           <h3 className="font-semibold truncate" title={book.title}>
             {book.title}
