@@ -1,3 +1,5 @@
+import { generateUUID } from "./uuid";
+
 const SESSION_KEY = "audio-shelf-session-id";
 
 export function getSessionId(): string {
@@ -8,7 +10,7 @@ export function getSessionId(): string {
   let sessionId = localStorage.getItem(SESSION_KEY);
 
   if (!sessionId) {
-    sessionId = crypto.randomUUID();
+    sessionId = generateUUID();
     localStorage.setItem(SESSION_KEY, sessionId);
   }
 

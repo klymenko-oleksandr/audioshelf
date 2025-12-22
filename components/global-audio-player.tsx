@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Pause, Play, SkipBack, SkipForward, Volume2, VolumeX, X } from 'lucide-react';
 import { useAudioPlayer } from './audio-player-context';
 import { usePlayUrl } from '@/lib/queries/books';
+import { MediaSessionHandler } from './media-session-handler';
 
 interface CurrentChapter {
   id: string;
@@ -86,6 +87,21 @@ export function GlobalAudioPlayer() {
       playChapter(book, prevChapter.id);
     }
   }, [book, currentChapter, currentTime, playChapter]);
+
+  const handleSeekBackward = useCallback(() => {
+    if (audioRef.current) {
+      audioRef.current.currentTime = Math.max(0, audioRef.current.currentTime - 10);
+    }
+  }, []);
+
+  const handleSeekForward = useCallback(() => {
+    if (audioRef.current) {
+      audioRef.current.currentTime = Math.min(
+        audioRef.current.duration,
+        audioRef.current.currentTime + 10
+      );
+    }
+  }, []);
 
   // Sync audio element with context isPlaying state
   useEffect(() => {
@@ -202,6 +218,15 @@ export function GlobalAudioPlayer() {
         onPause={handlePause}
         onEnded={handleEnded}
         muted={muted}
+      />
+      <MediaSessionHandler
+        audioRef={audioRef}
+        currentChapter={currentChapter}
+        totalChapters={totalChapters}
+        onNextChapter={goToNextChapter}
+        onPrevChapter={goToPrevChapter}
+        onSeekBackward={handleSeekBackward}
+        onSeekForward={handleSeekForward}
       />
       
       <div className="max-w-screen-xl mx-auto px-4 py-3">

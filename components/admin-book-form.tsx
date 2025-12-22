@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Upload, Check, Loader2, X, Plus, ImageIcon, ArrowLeft } from "lucide-react";
+import { generateUUID } from "@/lib/uuid";
 
 type Step = "form" | "uploading" | "saving" | "done";
 
@@ -119,7 +120,7 @@ export function AdminBookForm({ mode, bookId, initialData, onSuccess }: AdminBoo
       const duration = await getAudioDuration(file);
       const fileNameWithoutExt = file.name.replace(/\.[^/.]+$/, "");
       newChapters.push({
-        tempId: crypto.randomUUID(),
+        tempId: generateUUID(),
         file,
         title: fileNameWithoutExt,
         duration,
