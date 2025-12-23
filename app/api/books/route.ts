@@ -39,13 +39,37 @@ export async function GET(request: NextRequest) {
     const booksWithCoverUrls = await Promise.all(
       books.map(async (book) => {
         let coverUrl: string | null = null;
-        if (book.coverObjectKey) {
-          coverUrl = await createPlayUrl(book.coverObjectKey, 3600); // 1 hour expiry
+        let coverThumbnailUrl: string | null = null;
+        let coverMediumUrl: string | null = null;
+        let coverLargeUrl: string | null = null;
+        
+        // Prefer new variants, fallback to legacy coverObjectKey
+        if (book.coverThumbnailKey) {
+          coverThumbnailUrl = await createPlayUrl(book.coverThumbnailKey, 3600);
         }
+        if (book.coverMediumKey) {
+          coverMediumUrl = await createPlayUrl(book.coverMediumKey, 3600);
+        }
+        if (book.coverLargeKey) {
+          coverLargeUrl = await createPlayUrl(book.coverLargeKey, 3600);
+        }
+        
+        // Use medium as default, or fallback to legacy
+        coverUrl = coverMediumUrl;
+        if (!coverUrl && book.coverObjectKey) {
+          coverUrl = await createPlayUrl(book.coverObjectKey, 3600);
+        }
+        
         return {
           ...book,
           coverUrl,
-          coverObjectKey: undefined, // Don't expose the object key
+          coverThumbnailUrl,
+          coverMediumUrl,
+          coverLargeUrl,
+          coverObjectKey: undefined,
+          coverThumbnailKey: undefined,
+          coverMediumKey: undefined,
+          coverLargeKey: undefined,
         };
       })
     );

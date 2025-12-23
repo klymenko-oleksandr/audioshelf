@@ -13,6 +13,9 @@ export const createBookSchema = z.object({
   author: z.string().min(1, "Author is required").max(255),
   description: z.string().max(5000).optional().nullable(),
   coverObjectKey: z.string().optional().nullable(),
+  coverThumbnailKey: z.string().optional().nullable(),
+  coverMediumKey: z.string().optional().nullable(),
+  coverLargeKey: z.string().optional().nullable(),
   chapters: z.array(chapterInputSchema).min(1, "At least one chapter is required"),
 });
 
@@ -21,6 +24,9 @@ export const updateBookSchema = z.object({
   author: z.string().min(1, "Author is required").max(255),
   description: z.string().max(5000).optional().nullable(),
   coverObjectKey: z.string().optional().nullable(),
+  coverThumbnailKey: z.string().optional().nullable(),
+  coverMediumKey: z.string().optional().nullable(),
+  coverLargeKey: z.string().optional().nullable(),
   removeCover: z.boolean().optional(), // Flag to explicitly remove cover
   chapters: z.array(
     z.object({

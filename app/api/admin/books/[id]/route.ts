@@ -60,7 +60,7 @@ export async function PUT(
       );
     }
 
-    const { title, author, description, coverObjectKey, removeCover, chapters, deletedChapterIds } = parsed.data;
+    const { title, author, description, coverObjectKey, coverThumbnailKey, coverMediumKey, coverLargeKey, removeCover, chapters, deletedChapterIds } = parsed.data;
 
     // Get existing book
     const existingBook = await db.book.findUnique({
@@ -73,14 +73,25 @@ export async function PUT(
     }
 
     // Handle cover image changes
-    if (removeCover && existingBook.coverObjectKey) {
-      await deleteObject(existingBook.coverObjectKey).catch((err) => {
-        console.error(`Failed to delete old cover:`, err);
+    if (removeCover) {
+      // Delete all old cover variants
+      const deletePromises = [];
+      if (existingBook.coverObjectKey) deletePromises.push(deleteObject(existingBook.coverObjectKey));
+      if (existingBook.coverThumbnailKey) deletePromises.push(deleteObject(existingBook.coverThumbnailKey));
+      if (existingBook.coverMediumKey) deletePromises.push(deleteObject(existingBook.coverMediumKey));
+      if (existingBook.coverLargeKey) deletePromises.push(deleteObject(existingBook.coverLargeKey));
+      await Promise.all(deletePromises).catch((err) => {
+        console.error(`Failed to delete old cover variants:`, err);
       });
-    } else if (coverObjectKey && existingBook.coverObjectKey && coverObjectKey !== existingBook.coverObjectKey) {
-      // New cover uploaded, delete old one
-      await deleteObject(existingBook.coverObjectKey).catch((err) => {
-        console.error(`Failed to delete old cover:`, err);
+    } else if (coverThumbnailKey || coverMediumKey || coverLargeKey) {
+      // New cover uploaded, delete old variants
+      const deletePromises = [];
+      if (existingBook.coverObjectKey) deletePromises.push(deleteObject(existingBook.coverObjectKey));
+      if (existingBook.coverThumbnailKey) deletePromises.push(deleteObject(existingBook.coverThumbnailKey));
+      if (existingBook.coverMediumKey) deletePromises.push(deleteObject(existingBook.coverMediumKey));
+      if (existingBook.coverLargeKey) deletePromises.push(deleteObject(existingBook.coverLargeKey));
+      await Promise.all(deletePromises).catch((err) => {
+        console.error(`Failed to delete old cover variants:`, err);
       });
     }
 
@@ -113,6 +124,9 @@ export async function PUT(
         author,
         description,
         coverObjectKey: removeCover ? null : (coverObjectKey ?? existingBook.coverObjectKey),
+        coverThumbnailKey: removeCover ? null : (coverThumbnailKey ?? existingBook.coverThumbnailKey),
+        coverMediumKey: removeCover ? null : (coverMediumKey ?? existingBook.coverMediumKey),
+        coverLargeKey: removeCover ? null : (coverLargeKey ?? existingBook.coverLargeKey),
         totalDuration,
       },
     });
@@ -183,12 +197,15 @@ export async function DELETE(
       return NextResponse.json({ error: "Book not found" }, { status: 404 });
     }
 
-    // Delete cover image from S3 if exists
-    if (book.coverObjectKey) {
-      await deleteObject(book.coverObjectKey).catch((err) => {
-        console.error(`Failed to delete cover image ${book.coverObjectKey}:`, err);
-      });
-    }
+    // Delete cover images from S3 if exist
+    const deletePromises = [];
+    if (book.coverObjectKey) deletePromises.push(deleteObject(book.coverObjectKey));
+    if (book.coverThumbnailKey) deletePromises.push(deleteObject(book.coverThumbnailKey));
+    if (book.coverMediumKey) deletePromises.push(deleteObject(book.coverMediumKey));
+    if (book.coverLargeKey) deletePromises.push(deleteObject(book.coverLargeKey));
+    await Promise.all(deletePromises).catch((err) => {
+      console.error(`Failed to delete cover images:`, err);
+    });
 
     // Delete all chapter audio files from S3
     await Promise.all(

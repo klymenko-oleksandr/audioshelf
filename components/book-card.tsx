@@ -3,8 +3,9 @@
 import { Book } from "@/lib/types";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Play, Music, Pause, Trash2, Loader2, Pencil } from "lucide-react";
+import { Play, Pause, Trash2, Loader2, Pencil } from "lucide-react";
 import Link from "next/link";
+import { ResponsiveBookCover } from "./responsive-book-cover";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -53,16 +54,15 @@ export function BookCard({ book, onDelete, showEditButton, hidePlayButton = fals
 
   return (
     <Card className="overflow-hidden transition-shadow hover:shadow-md pt-0">
-      <div className="aspect-video relative bg-muted flex items-center justify-center">
-        {book.coverUrl ? (
-          <img
-            src={book.coverUrl}
-            alt={book.title}
-            className="w-full h-full object-cover"
-          />
-        ) : (
-          <Music className="w-12 h-12 text-muted-foreground" />
-        )}
+      <div className="aspect-video relative">
+        <ResponsiveBookCover
+          coverUrl={book.coverUrl}
+          coverThumbnailUrl={book.coverThumbnailUrl}
+          coverMediumUrl={book.coverMediumUrl}
+          coverLargeUrl={book.coverLargeUrl}
+          title={book.title}
+          className="w-full h-full"
+        />
         <div className="absolute bottom-2 right-2 flex gap-1">
           {showEditButton && (
             <Link href={`/admin/books/${book.id}/edit`}>

@@ -55,6 +55,11 @@ export function AdminBookForm({ mode, bookId, initialData, onSuccess }: AdminBoo
   const [coverFile, setCoverFile] = useState<File | null>(null);
   const [coverPreview, setCoverPreview] = useState<string | null>(initialData?.coverUrl ?? null);
   const [existingCoverKey, setExistingCoverKey] = useState<string | null>(initialData?.coverObjectKey ?? null);
+  const [coverVariants, setCoverVariants] = useState<{
+    thumbnail?: string;
+    medium?: string;
+    large?: string;
+  } | null>(null);
   const [removeCover, setRemoveCover] = useState(false);
   const [chapters, setChapters] = useState<ChapterData[]>(() => {
     if (initialData?.chapters) {
@@ -203,42 +208,37 @@ export function AdminBookForm({ mode, bookId, initialData, onSuccess }: AdminBoo
     try {
       setStep("uploading");
 
-      // Upload cover image if new one selected
-      let coverObjectKey: string | null = existingCoverKey;
+      // Upload and optimize cover image if new one selected
+      let coverImageVariants: {
+        thumbnail?: string;
+        medium?: string;
+        large?: string;
+      } | null = null;
+      
       if (coverFile) {
         setUploadingChapter(0);
         setUploadProgress(0);
 
-        const coverUrlRes = await fetch("/api/admin/upload-url", {
+        const formData = new FormData();
+        formData.append("file", coverFile);
+
+        const optimizeRes = await fetch("/api/admin/optimize-image", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            filename: coverFile.name,
-            contentType: coverFile.type,
-            type: "cover",
-          }),
+          body: formData,
         });
 
-        if (!coverUrlRes.ok) {
-          const data = await coverUrlRes.json();
-          throw new Error(data.error || "Failed to get upload URL for cover");
+        if (!optimizeRes.ok) {
+          const data = await optimizeRes.json();
+          throw new Error(data.error || "Failed to optimize cover image");
         }
 
-        const { uploadUrl, objectKey } = await coverUrlRes.json();
-
-        const uploadRes = await fetch(uploadUrl, {
-          method: "PUT",
-          body: coverFile,
-          headers: {
-            "Content-Type": coverFile.type,
-          },
-        });
-
-        if (!uploadRes.ok) {
-          throw new Error("Failed to upload cover image");
-        }
-
-        coverObjectKey = objectKey;
+        const { variants } = await optimizeRes.json();
+        coverImageVariants = {
+          thumbnail: variants.thumbnail?.objectKey,
+          medium: variants.medium?.objectKey,
+          large: variants.large?.objectKey,
+        };
+        
         setUploadProgress(100);
       }
 
@@ -326,7 +326,9 @@ export function AdminBookForm({ mode, bookId, initialData, onSuccess }: AdminBoo
             title: title.trim(),
             author: author.trim(),
             description: description.trim() || null,
-            coverObjectKey,
+            coverThumbnailKey: coverImageVariants?.thumbnail || null,
+            coverMediumKey: coverImageVariants?.medium || null,
+            coverLargeKey: coverImageVariants?.large || null,
             chapters: processedChapters,
           }),
         });
@@ -343,7 +345,9 @@ export function AdminBookForm({ mode, bookId, initialData, onSuccess }: AdminBoo
             title: title.trim(),
             author: author.trim(),
             description: description.trim() || null,
-            coverObjectKey: removeCover ? null : coverObjectKey,
+            coverThumbnailKey: removeCover ? null : (coverImageVariants?.thumbnail || undefined),
+            coverMediumKey: removeCover ? null : (coverImageVariants?.medium || undefined),
+            coverLargeKey: removeCover ? null : (coverImageVariants?.large || undefined),
             removeCover,
             chapters: processedChapters,
             deletedChapterIds,

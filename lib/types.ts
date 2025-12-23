@@ -19,7 +19,10 @@ export interface Book {
   author: string;
   description: string | null;
   coverUrl: string | null;
-  coverObjectKey: string | null; // S3 object key - @todo: verify
+  coverThumbnailUrl?: string | null;
+  coverMediumUrl?: string | null;
+  coverLargeUrl?: string | null;
+  coverObjectKey: string | null; // S3 object key - legacy
   totalDuration: number;
   createdAt: string;
   chapters: Chapter[];

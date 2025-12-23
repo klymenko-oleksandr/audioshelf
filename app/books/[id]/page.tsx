@@ -4,7 +4,8 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { useAudioPlayer } from "@/components/audio-player-context";
-import { ArrowLeft, Music, Play, Pause, Clock } from "lucide-react";
+import { ArrowLeft, Play, Pause, Clock } from "lucide-react";
+import { ResponsiveBookCover } from "@/components/responsive-book-cover";
 import { useBook } from "@/lib/queries/books";
 
 function formatDuration(seconds: number): string {
@@ -91,16 +92,16 @@ export default function BookDetailsPage() {
         <div className="flex flex-col md:flex-row gap-8 mb-8">
           {/* Cover Image */}
           <div className="flex-shrink-0">
-            <div className="w-full md:w-96 aspect-video bg-muted rounded-lg overflow-hidden flex items-center justify-center">
-              {book.coverUrl ? (
-                <img
-                  src={book.coverUrl}
-                  alt={book.title}
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                <Music className="w-16 h-16 text-muted-foreground" />
-              )}
+            <div className="w-full md:w-96 aspect-video rounded-lg overflow-hidden relative">
+              <ResponsiveBookCover
+                coverUrl={book.coverUrl}
+                coverThumbnailUrl={book.coverThumbnailUrl}
+                coverMediumUrl={book.coverMediumUrl}
+                coverLargeUrl={book.coverLargeUrl}
+                title={book.title}
+                className="w-full h-full"
+                priority={true}
+              />
             </div>
           </div>
 

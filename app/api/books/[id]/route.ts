@@ -22,16 +22,38 @@ export async function GET(
       return NextResponse.json({ error: "Book not found" }, { status: 404 });
     }
 
-    // Generate signed URL for cover if exists
+    // Generate signed URLs for cover variants
     let coverUrl: string | null = null;
-    if (book.coverObjectKey) {
+    let coverThumbnailUrl: string | null = null;
+    let coverMediumUrl: string | null = null;
+    let coverLargeUrl: string | null = null;
+    
+    if (book.coverThumbnailKey) {
+      coverThumbnailUrl = await createPlayUrl(book.coverThumbnailKey, 3600);
+    }
+    if (book.coverMediumKey) {
+      coverMediumUrl = await createPlayUrl(book.coverMediumKey, 3600);
+    }
+    if (book.coverLargeKey) {
+      coverLargeUrl = await createPlayUrl(book.coverLargeKey, 3600);
+    }
+    
+    // Use medium as default, or fallback to legacy
+    coverUrl = coverMediumUrl;
+    if (!coverUrl && book.coverObjectKey) {
       coverUrl = await createPlayUrl(book.coverObjectKey, 3600);
     }
 
     return NextResponse.json({
       ...book,
       coverUrl,
+      coverThumbnailUrl,
+      coverMediumUrl,
+      coverLargeUrl,
       coverObjectKey: undefined,
+      coverThumbnailKey: undefined,
+      coverMediumKey: undefined,
+      coverLargeKey: undefined,
     });
   } catch (error) {
     console.error("Failed to fetch book:", error);

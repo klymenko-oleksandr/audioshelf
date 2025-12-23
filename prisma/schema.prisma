@@ -14,16 +14,19 @@ datasource db {
 }
 
 model Book {
-  id             String             @id @default(cuid())
-  title          String
-  author         String
-  description    String?
-  coverObjectKey String?
-  totalDuration  Float              @default(0) // Sum of all chapter durations in seconds
-  createdAt      DateTime           @default(now())
-  updatedAt      DateTime           @updatedAt
-  chapters       Chapter[]
-  progress       PlaybackProgress[]
+  id                    String             @id @default(cuid())
+  title                 String
+  author                String
+  description           String?
+  coverObjectKey        String? // Base key for cover image (legacy)
+  coverThumbnailKey     String? // 320x180 WebP
+  coverMediumKey        String? // 640x360 WebP
+  coverLargeKey         String? // 1280x720 WebP
+  totalDuration         Float              @default(0) // Sum of all chapter durations in seconds
+  createdAt             DateTime           @default(now())
+  updatedAt             DateTime           @updatedAt
+  chapters              Chapter[]
+  progress              PlaybackProgress[]
 }
 
 model Chapter {

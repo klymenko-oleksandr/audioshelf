@@ -36,7 +36,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { title, author, coverObjectKey, chapters } = parsed.data;
+    const { title, author, description, coverObjectKey, coverThumbnailKey, coverMediumKey, coverLargeKey, chapters } = parsed.data;
 
     // Calculate total duration from all chapters
     const totalDuration = chapters.reduce((sum, ch) => sum + ch.duration, 0);
@@ -45,7 +45,11 @@ export async function POST(request: NextRequest) {
       data: {
         title,
         author,
+        description,
         coverObjectKey,
+        coverThumbnailKey,
+        coverMediumKey,
+        coverLargeKey,
         totalDuration,
         chapters: {
           create: chapters.map((ch) => ({
