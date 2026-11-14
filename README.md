@@ -76,5 +76,9 @@ colours (`bg-primary`, `text-muted-foreground`, `text-brand`, …) and type util
 `text-caption`). Colours use `light-dark()`: the theme follows the system and can be forced with
 `data-theme="light|dark"` on `<html>`. Use `text-brand` for green text and icons, never
 `text-primary`. `lib/ui/tokens.test.ts` checks the contrast of every pair the UI relies on.
+Components come from shadcn/ui (`components.json`: base-nova style, Base UI primitives, Remix
+icons): `npx shadcn@latest add <component>` writes into `components/ui/`. After adding one:
+remove its `focus-visible:ring-*` / `focus-visible:border-ring` classes (the global solid focus
+ring in `globals.css` replaces shadcn's faint halo) and swap `text-primary` for `text-brand`.
 Fonts are self-hosted (Fontsource): Instrument Sans for headings — with Geist as the Cyrillic
 fallback, because Instrument Sans has no Cyrillic — and Geist Mono for everything else.
