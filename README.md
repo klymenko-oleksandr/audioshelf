@@ -82,3 +82,16 @@ remove its `focus-visible:ring-*` / `focus-visible:border-ring` classes (the glo
 ring in `globals.css` replaces shadcn's faint halo) and swap `text-primary` for `text-brand`.
 Fonts are self-hosted (Fontsource): Instrument Sans for headings — with Geist as the Cyrillic
 fallback, because Instrument Sans has no Cyrillic — and Geist Mono for everything else.
+
+## Shared UI behaviours
+
+- **Toasts** — `toast({ title, description?, icon?, action?, variant?, onDismiss? })` from
+  `@/components/ui/toast`. One at a time; 5 s, or 8 s with an action; errors stay until closed.
+  Put delayed work (deleting a removed download) in `onDismiss` and skip it when the reason is
+  `'action'` (the user pressed Undo).
+- **Loaders** — `useDelayedLoading(loading)` from `@/hooks/use-delayed-loading` returns whether
+  a skeleton or spinner should be on screen: nothing for 300 ms, then at least 600 ms.
+- **Errors** — `app/error.tsx` replaces only the page content; the shell and player stay.
+- **Splash** — `components/shell/splash.tsx`, static HTML and CSS shown until hydration.
+  Append `?splash=hold` to any URL to keep it up and see the 3 s and 15 s messages.
+- **Showcase** — `/dev/ui` demonstrates all of the above (hidden in production).

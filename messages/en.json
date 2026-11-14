@@ -79,5 +79,18 @@
     "body": "The book may have been removed, or the link is wrong. Your library and listening progress are safe.",
     "home": "Go home",
     "explore": "Explore books"
+  },
+  "splash": {
+    "slow": "Still loading. Your connection seems slow.",
+    "failed": "Couldn't load the app. Check your connection and try again.",
+    "reload": "Reload"
+  },
+  "toast": {
+    "close": "Close"
+  },
+  "error": {
+    "title": "This page didn't load",
+    "body": "Something went wrong on our side. Your library and listening progress are safe.",
+    "retry": "Try again"
   }
 }
