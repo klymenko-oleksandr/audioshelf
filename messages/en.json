@@ -1,0 +1,16 @@
+{
+  "app": {
+    "name": "Audioshelf",
+    "description": "Free audiobooks you can listen to anywhere."
+  },
+  "home": {
+    "title": "Audioshelf",
+    "tagline": "Free audiobooks you can listen to anywhere.",
+    "status": "The new app is under construction. The foundation is in place."
+  },
+  "languageSwitcher": {
+    "label": "Language",
+    "uk": "Українська",
+    "en": "English"
+  }
+}
