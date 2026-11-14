@@ -1,3 +1,236 @@
 @import 'tailwindcss';
+@import '@fontsource-variable/instrument-sans/wght.css';
+@import '@fontsource-variable/geist/wght.css';
+@import '@fontsource-variable/geist-mono/wght.css';
 
-/* Sasha UI tokens land here in Phase 1. */
+/*
+ * Sasha UI tokens (shadcn preset b7kBsBkh7b: Nova, zinc, green primary).
+ * Source of truth for values: the Sasha UI design system artifact.
+ *
+ * Every colour is written once with light-dark(): the theme follows the system by
+ * default and can be forced with data-theme="light" | "dark" on <html> (Settings, Phase 5).
+ *
+ * Changes against the published tokens (the known contrast debt):
+ *   --brand-text                  new: green for text and icons. --primary is only 2.8:1 on the
+ *                                 dark background, so dark uses the lighter sidebar green;
+ *                                 light is a touch darker than --primary to pass on muted fills.
+ *   --sidebar-primary-foreground  was near-white (3.1:1 light, 2.1:1 dark on --sidebar-primary);
+ *                                 now dark ink, which passes in both themes.
+ *   --ring / --focus-ring         was a faint 50% zinc halo (< 3:1); now a solid 2px ring with a
+ *                                 background-coloured gap.
+ * lib/ui/tokens.test.ts keeps these pairs honest.
+ */
+:root {
+  color-scheme: light dark;
+
+  --background: light-dark(oklch(1 0 0), oklch(0.141 0.005 285.823));
+  --foreground: light-dark(oklch(0.141 0.005 285.823), oklch(0.985 0 0));
+  --card: light-dark(oklch(1 0 0), oklch(0.21 0.006 285.885));
+  --card-foreground: light-dark(oklch(0.141 0.005 285.823), oklch(0.985 0 0));
+  --popover: light-dark(oklch(1 0 0), oklch(0.21 0.006 285.885));
+  --popover-foreground: light-dark(oklch(0.141 0.005 285.823), oklch(0.985 0 0));
+
+  --menu: light-dark(oklch(0.141 0.005 285.823 / 90%), oklch(0.985 0 0 / 90%));
+  --menu-foreground: light-dark(oklch(0.985 0 0), oklch(0.141 0.005 285.823));
+  --menu-muted-foreground: light-dark(oklch(0.705 0.015 286.067), oklch(0.442 0.017 285.786));
+  --menu-destructive: light-dark(oklch(0.704 0.191 22.216), oklch(0.577 0.245 27.325));
+  --menu-accent: light-dark(oklch(1 0 0 / 10%), oklch(0 0 0 / 8%));
+  --menu-border: light-dark(oklch(1 0 0 / 10%), oklch(0 0 0 / 10%));
+
+  --primary: light-dark(oklch(0.527 0.154 150.069), oklch(0.448 0.119 151.328));
+  --primary-foreground: light-dark(oklch(0.982 0.018 155.826), oklch(0.982 0.018 155.826));
+  --brand-text: light-dark(oklch(0.5 0.154 150.069), oklch(0.723 0.219 149.579));
+  --secondary: light-dark(oklch(0.967 0.001 286.375), oklch(0.274 0.006 286.033));
+  --secondary-foreground: light-dark(oklch(0.21 0.006 285.885), oklch(0.985 0 0));
+  --muted: light-dark(oklch(0.967 0.001 286.375), oklch(0.274 0.006 286.033));
+  --muted-foreground: light-dark(oklch(0.552 0.016 285.938), oklch(0.705 0.015 286.067));
+  --accent: light-dark(oklch(0.967 0.001 286.375), oklch(0.274 0.006 286.033));
+  --accent-foreground: light-dark(oklch(0.21 0.006 285.885), oklch(0.985 0 0));
+  --destructive: light-dark(oklch(0.577 0.245 27.325), oklch(0.704 0.191 22.216));
+  --border: light-dark(oklch(0.92 0.004 286.32), oklch(1 0 0 / 10%));
+  --input: light-dark(oklch(0.92 0.004 286.32), oklch(1 0 0 / 15%));
+  --ring: light-dark(oklch(0.442 0.017 285.786), oklch(0.705 0.015 286.067));
+
+  --chart-1: oklch(0.871 0.006 286.286);
+  --chart-2: oklch(0.552 0.016 285.938);
+  --chart-3: oklch(0.442 0.017 285.786);
+  --chart-4: oklch(0.37 0.013 285.805);
+  --chart-5: oklch(0.274 0.006 286.033);
+
+  --sidebar: light-dark(oklch(0.985 0 0), oklch(0.21 0.006 285.885));
+  --sidebar-foreground: light-dark(oklch(0.141 0.005 285.823), oklch(0.985 0 0));
+  --sidebar-primary: light-dark(oklch(0.627 0.194 149.214), oklch(0.723 0.219 149.579));
+  --sidebar-primary-foreground: light-dark(oklch(0.141 0.005 285.823), oklch(0.141 0.005 285.823));
+  --sidebar-accent: light-dark(oklch(0.967 0.001 286.375), oklch(0.274 0.006 286.033));
+  --sidebar-accent-foreground: light-dark(oklch(0.21 0.006 285.885), oklch(0.985 0 0));
+  --sidebar-border: light-dark(oklch(0.92 0.004 286.32), oklch(1 0 0 / 10%));
+
+  --focus-ring: 0 0 0 2px var(--background), 0 0 0 4px var(--ring);
+  --focus-ring-destructive: 0 0 0 2px var(--background), 0 0 0 4px var(--destructive);
+
+  /* Shell geometry — one place, used by the fixed chrome and the content padding. */
+  --shell-nav: 0px;
+  --shell-header: 56px;
+  --shell-player: 64px;
+  --shell-tabbar: calc(56px + env(safe-area-inset-bottom, 0px));
+}
+
+[data-theme='light'] {
+  color-scheme: light;
+}
+[data-theme='dark'] {
+  color-scheme: dark;
+}
+
+@media (min-width: 768px) {
+  :root {
+    --shell-nav: 80px;
+    --shell-header: 64px;
+    --shell-player: 72px;
+    --shell-tabbar: 0px;
+  }
+}
+@media (min-width: 1024px) {
+  :root {
+    --shell-nav: 240px;
+    --shell-player: 80px;
+  }
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-menu: var(--menu);
+  --color-menu-foreground: var(--menu-foreground);
+  --color-menu-muted-foreground: var(--menu-muted-foreground);
+  --color-menu-destructive: var(--menu-destructive);
+  --color-menu-accent: var(--menu-accent);
+  --color-menu-border: var(--menu-border);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-brand: var(--brand-text);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+
+  /* Instrument Sans has no Cyrillic; Geist covers Ukrainian headings glyph by glyph. */
+  --font-heading:
+    'Instrument Sans Variable', 'Geist Variable', ui-sans-serif, system-ui, sans-serif;
+  --font-body: 'Geist Mono Variable', ui-monospace, 'SF Mono', Menlo, monospace;
+  --default-font-family: var(--font-body);
+
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 10px;
+  --radius-xl: 14px;
+
+  --shadow-xs: 0 1px 2px 0 oklch(0 0 0 / 5%);
+  --shadow-sm: 0 1px 3px 0 oklch(0 0 0 / 10%), 0 1px 2px -1px oklch(0 0 0 / 10%);
+  --shadow-lg: 0 10px 15px -3px oklch(0 0 0 / 10%), 0 4px 6px -4px oklch(0 0 0 / 10%);
+  --shadow-focus: var(--focus-ring);
+}
+
+/* Type styles from the design system. */
+@utility text-h1 {
+  font-family: var(--font-heading);
+  font-size: 36px;
+  line-height: 40px;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+}
+@utility text-h2 {
+  font-family: var(--font-heading);
+  font-size: 30px;
+  line-height: 36px;
+  font-weight: 600;
+  letter-spacing: -0.025em;
+}
+@utility text-h3 {
+  font-family: var(--font-heading);
+  font-size: 24px;
+  line-height: 32px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+@utility text-h4 {
+  font-family: var(--font-heading);
+  font-size: 20px;
+  line-height: 28px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+@utility text-card-title {
+  font-family: var(--font-heading);
+  font-size: 16px;
+  line-height: 20px;
+  font-weight: 600;
+}
+@utility text-body {
+  font-size: 14px;
+  line-height: 22px;
+  font-weight: 400;
+}
+@utility text-body-sm {
+  font-size: 13px;
+  line-height: 20px;
+  font-weight: 400;
+}
+@utility text-label {
+  font-size: 13px;
+  line-height: 16px;
+  font-weight: 500;
+}
+@utility text-caption {
+  font-size: 11px;
+  line-height: 16px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    background: var(--background);
+    color: var(--foreground);
+    font-size: 13px;
+    line-height: 20px;
+    -webkit-font-smoothing: antialiased;
+  }
+  :focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    ::before,
+    ::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}

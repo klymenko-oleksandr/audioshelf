@@ -3,14 +3,81 @@
     "name": "Audioshelf",
     "description": "Free audiobooks you can listen to anywhere."
   },
-  "home": {
-    "title": "Audioshelf",
-    "tagline": "Free audiobooks you can listen to anywhere.",
-    "status": "The new app is under construction. The foundation is in place."
-  },
   "languageSwitcher": {
     "label": "Language",
     "uk": "Українська",
     "en": "English"
+  },
+  "shell": {
+    "skipToContent": "Skip to content"
+  },
+  "nav": {
+    "mainLabel": "Main",
+    "libraryLabel": "Your library",
+    "home": "Home",
+    "explore": "Explore",
+    "library": "Library",
+    "downloads": "Downloads",
+    "stats": "Listening stats",
+    "you": "You",
+    "settings": "Settings",
+    "soon": "Soon",
+    "short": {
+      "home": "Home",
+      "explore": "Explore",
+      "library": "Library",
+      "downloads": "Offline",
+      "stats": "Stats",
+      "you": "You"
+    }
+  },
+  "search": {
+    "label": "Search",
+    "placeholder": "Search books, authors, narrators"
+  },
+  "auth": {
+    "signIn": "Sign in"
+  },
+  "guest": {
+    "title": "Keep your place on every device",
+    "body": "You're listening as a guest. Progress is saved on this device only.",
+    "cta": "Continue with Google"
+  },
+  "player": {
+    "label": "Player",
+    "idleTitle": "Nothing playing",
+    "idleHint": "Pick a book to start listening",
+    "play": "Play"
+  },
+  "pages": {
+    "comingSoon": "This screen is on its way.",
+    "home": {
+      "title": "Home"
+    },
+    "explore": {
+      "title": "Explore"
+    },
+    "library": {
+      "title": "Library"
+    },
+    "downloads": {
+      "title": "Downloads"
+    },
+    "settings": {
+      "title": "Settings",
+      "language": "Language"
+    },
+    "signin": {
+      "title": "Sign in"
+    },
+    "search": {
+      "title": "Search"
+    }
+  },
+  "notFound": {
+    "title": "This page isn't here",
+    "body": "The book may have been removed, or the link is wrong. Your library and listening progress are safe.",
+    "home": "Go home",
+    "explore": "Explore books"
   }
 }

@@ -24,7 +24,7 @@ export function LanguageSwitcher() {
     <div
       role="group"
       aria-label={t('label')}
-      className="inline-flex rounded-lg border border-zinc-200 p-1 dark:border-zinc-800"
+      className="bg-muted inline-flex w-fit rounded-lg p-[3px]"
     >
       {locales.map((locale) => (
         <button
