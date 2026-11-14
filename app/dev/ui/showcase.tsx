@@ -7,9 +7,16 @@ import {
   RiPlayListAddLine,
 } from '@remixicon/react';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { BottomSheet, SheetAction } from '@/components/ui/bottom-sheet';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from '@/components/ui/toast';
+import {
+  BookCard,
+  type BookCardBook,
+  type BookCardDownload,
+} from '@/features/catalogue/components/book-card';
+import { PlayerBarView, type PlayerViewState } from '@/features/player/components/player-bar-view';
 import { useDelayedLoading } from '@/hooks/use-delayed-loading';
 
 function Section({ title, note, children }: { title: string; note: string; children: ReactNode }) {
@@ -17,7 +24,7 @@ function Section({ title, note, children }: { title: string; note: string; child
     <section className="border-border flex flex-col gap-3 border-t pt-5">
       <h2 className="text-h4">{title}</h2>
       <p className="text-muted-foreground max-w-prose">{note}</p>
-      <div className="flex flex-wrap items-center gap-2">{children}</div>
+      <div className="flex min-w-0 flex-wrap items-center gap-2">{children}</div>
     </section>
   );
 }
@@ -71,6 +78,188 @@ function LoaderDemo() {
   );
 }
 
+interface DemoBook extends BookCardBook {
+  progressPct: number;
+  liked: boolean;
+  listenLater: boolean;
+  download: BookCardDownload;
+  note: string;
+}
+
+const DEMO_BOOKS: DemoBook[] = [
+  ['kobzar', 'Кобзар', 'Тарас Шевченко', '6 h 40 m', 'UA', 0, false, 'none', 'Plain'],
+  [
+    'holmes',
+    'The Adventures of Sherlock Holmes',
+    'Arthur Conan Doyle',
+    '10 h 24 m',
+    'EN',
+    46,
+    false,
+    'none',
+    'In progress',
+  ],
+  ['forest-song', 'Лісова пісня', 'Леся Українка', '3 h 05 m', 'UA', 0, true, 'none', 'Liked'],
+  [
+    'frankenstein',
+    'Frankenstein',
+    'Mary Shelley',
+    '8 h 38 m',
+    'EN',
+    0,
+    false,
+    'done',
+    'Downloaded',
+  ],
+  ['dracula', 'Dracula', 'Bram Stoker', '15 h 30 m', 'EN', 0, true, 'downloading', 'Downloading'],
+  [
+    'treasure',
+    'Treasure Island',
+    'Robert Louis Stevenson',
+    '7 h 10 m',
+    'EN',
+    78,
+    true,
+    'done',
+    'Everything',
+  ],
+].map(([slug, title, author, durationLabel, language, progressPct, liked, dl, note]) => ({
+  slug,
+  title,
+  author,
+  authorSlug: String(author).toLowerCase().replaceAll(' ', '-'),
+  durationLabel,
+  language,
+  progressPct,
+  liked,
+  listenLater: false,
+  download: dl === 'downloading' ? { status: 'downloading', pct: 64 } : { status: dl },
+  note,
+})) as DemoBook[];
+
+function BookCardDemo() {
+  const [books, setBooks] = useState(DEMO_BOOKS);
+  const patch = (slug: string, change: (book: DemoBook) => Partial<DemoBook>) =>
+    setBooks((all) => all.map((b) => (b.slug === slug ? { ...b, ...change(b) } : b)));
+
+  return (
+    <div className="grid basis-full grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-x-4 gap-y-5 lg:gap-x-6">
+      {books.map((book) => (
+        <div key={book.slug} className="flex min-w-0 flex-col gap-2">
+          <span className="text-muted-foreground text-caption uppercase">{book.note}</span>
+          <BookCard
+            book={book}
+            progressPct={book.progressPct}
+            liked={book.liked}
+            listenLater={book.listenLater}
+            download={book.download}
+            onPlay={() => toast({ title: `Play: ${book.title}` })}
+            onToggleLike={() => patch(book.slug, (b) => ({ liked: !b.liked }))}
+            onToggleListenLater={() => {
+              patch(book.slug, (b) => ({ listenLater: !b.listenLater }));
+              toast({
+                icon: <RiPlayListAddLine size={18} />,
+                title: book.listenLater ? 'Removed from Listen later' : 'Added to Listen later',
+                action: {
+                  label: 'Undo',
+                  onClick: () => patch(book.slug, (b) => ({ listenLater: !b.listenLater })),
+                },
+              });
+            }}
+            onToggleDownload={() =>
+              patch(book.slug, (b) => ({
+                download: b.download.status === 'none' ? { status: 'done' } : { status: 'none' },
+              }))
+            }
+            onShare={() => toast({ title: 'Link copied' })}
+          />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+const PLAYER_STATES: PlayerViewState[] = [
+  'idle',
+  'loading',
+  'playing',
+  'paused',
+  'buffering',
+  'error',
+  'finished',
+];
+
+function PlayerBarDemo() {
+  const [state, setState] = useState<PlayerViewState>('playing');
+  const [liked, setLiked] = useState(true);
+
+  return (
+    <>
+      {PLAYER_STATES.map((s) => (
+        <Button
+          key={s}
+          variant={s === state ? 'default' : 'outline'}
+          size="sm"
+          aria-pressed={s === state}
+          onClick={() => setState(s)}
+        >
+          {s}
+        </Button>
+      ))}
+      <div className="w-full min-w-0 pt-2" data-testid="player-demo">
+        <PlayerBarView
+          state={state}
+          book={{ slug: 'holmes', title: 'The Adventures of Sherlock Holmes' }}
+          chapterLabel="Ch. 6 · The Man with the Twisted Lip"
+          chapterTitle="The Man with the Twisted Lip"
+          bookProgressPct={state === 'finished' ? 100 : 46}
+          chapterProgressPct={52}
+          elapsedLabel="27:14"
+          remainingLabel="−25:26"
+          positionLabel="Ch. 6 · 27:14 / 52:40"
+          timeLeftLabel="25 min left"
+          speedLabel="1.25×"
+          liked={liked}
+          onPlayPause={() => setState(state === 'playing' ? 'paused' : 'playing')}
+          onRetry={() => setState('loading')}
+          onPlayAgain={() => setState('playing')}
+          onToggleLike={() => setLiked(!liked)}
+        />
+      </div>
+    </>
+  );
+}
+
+function SheetDemo() {
+  const [open, setOpen] = useState(false);
+  const [speed, setSpeed] = useState('1×');
+
+  return (
+    <>
+      <Button variant="outline" onClick={() => setOpen(true)}>
+        Open sheet
+      </Button>
+      <span className="text-muted-foreground" data-testid="sheet-value">
+        Speed: {speed}
+      </span>
+      <BottomSheet open={open} onOpenChange={setOpen} title="Playback speed">
+        {['0.75×', '1×', '1.25×', '1.5×'].map((value) => (
+          <SheetAction
+            key={value}
+            icon={<span className="w-5 text-center">{value === speed ? '✓' : ''}</span>}
+            onSelect={() => {
+              setSpeed(value);
+              setOpen(false);
+            }}
+          >
+            {value}
+          </SheetAction>
+        ))}
+      </BottomSheet>
+    </>
+  );
+}
+
 function Bomb(): ReactNode {
   throw new Error('Showcase: thrown on purpose to demonstrate the error boundary');
 }
@@ -88,6 +277,27 @@ export function Showcase() {
           production.
         </p>
       </div>
+
+      <Section
+        title="Book card"
+        note="Badges are always visible. With a mouse: hover or tab to a card for play, heart and the menu. On touch: the … button or a long press opens the actions sheet."
+      >
+        <BookCardDemo />
+      </Section>
+
+      <Section
+        title="Player bar"
+        note="Every state from the PRD state machine. The layout follows the width of the bar: resize the window to see the phone card, the tablet bar and the full desktop bar."
+      >
+        <PlayerBarDemo />
+      </Section>
+
+      <Section
+        title="Bottom sheet"
+        note="Closes on tap outside, Esc and the browser Back button, without leaving the page."
+      >
+        <SheetDemo />
+      </Section>
 
       <Section
         title="Toasts"

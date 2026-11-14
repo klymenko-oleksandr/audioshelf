@@ -20,6 +20,9 @@
   }
 }
 
+/* Devices without hover (phones, tablets): `touch:` swaps hover affordances for touch ones. */
+@custom-variant touch (@media (hover: none));
+
 /*
  * Sasha UI tokens (shadcn preset b7kBsBkh7b: Nova, zinc, green primary).
  * Source of truth for values: the Sasha UI design system artifact.

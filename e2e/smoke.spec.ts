@@ -181,3 +181,134 @@ test.describe('system behaviours', () => {
     await expect(page.getByRole('heading', { level: 1, name: 'UI showcase' })).toBeVisible();
   });
 });
+
+test.describe('components', () => {
+  test.use({ locale: 'en-US' });
+
+  test('book card: hover reveals actions, the heart toggles, the menu is not the place for Like', async ({
+    page,
+  }) => {
+    await open(page, '/dev/ui');
+    const card = page.getByRole('article').filter({ hasText: 'Кобзар' });
+    const play = card.getByRole('button', { name: 'Play Кобзар' });
+    await expect(play).toHaveCSS('opacity', '0');
+
+    await card.hover();
+    await expect(play).toHaveCSS('opacity', '1');
+
+    await card.getByRole('button', { name: 'Like', exact: true }).click();
+    await expect(card.getByRole('button', { name: 'Unlike' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+
+    await card.getByRole('button', { name: 'More actions' }).first().click();
+    const menu = page.getByRole('menu');
+    await expect(menu.getByRole('menuitem')).toHaveText([
+      'Play',
+      'Add to Listen later',
+      'Download',
+      'Go to author',
+      'Share',
+    ]);
+    await expect(play).toHaveCSS('opacity', '1'); // stays active while the menu is open
+
+    await menu.getByRole('menuitem', { name: 'Add to Listen later' }).click();
+    await expect(page.getByRole('status').getByText('Added to Listen later')).toBeVisible();
+    await expect(menu).toBeHidden();
+  });
+
+  test('book card: keyboard focus reveals the actions', async ({ page }) => {
+    await open(page, '/dev/ui');
+    const card = page.getByRole('article').filter({ hasText: 'Кобзар' });
+    await card.getByRole('link', { name: 'Кобзар, Тарас Шевченко' }).focus();
+    await expect(card.getByRole('button', { name: 'Play Кобзар' })).toHaveCSS('opacity', '1');
+  });
+
+  test('player bar: states switch the controls', async ({ page }) => {
+    await open(page, '/dev/ui');
+    const demo = page.getByTestId('player-demo');
+    await expect(demo.getByRole('button', { name: 'Pause' })).toBeVisible();
+
+    await demo.getByRole('button', { name: 'Pause' }).click();
+    await expect(demo.getByRole('button', { name: 'Play', exact: true })).toBeVisible();
+
+    await page.getByRole('button', { name: 'error', exact: true }).click();
+    await expect(demo.getByRole('alert')).toContainText("Couldn't load this chapter");
+    await demo.getByRole('button', { name: 'Try again' }).click();
+    await expect(demo.getByRole('button', { name: 'Loading…' })).toBeVisible();
+
+    await page.getByRole('button', { name: 'finished', exact: true }).click();
+    await expect(demo.getByRole('button', { name: 'Play again' })).toBeVisible();
+  });
+
+  test('nothing overflows sideways at phone, tablet or desktop width', async ({ page }) => {
+    for (const size of [PHONE, TABLET, { width: 1024, height: 768 }, DESKTOP]) {
+      await open(page, '/dev/ui', size);
+      await page.getByRole('button', { name: 'error', exact: true }).click();
+      const overflow = await page.evaluate(
+        () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      );
+      expect(overflow, `horizontal overflow at ${size.width}px`).toBe(0);
+    }
+  });
+
+  test('bottom sheet: Back closes it without leaving the page; Esc leaves history clean', async ({
+    page,
+  }) => {
+    await open(page, '/', PHONE);
+    await page.goto('/dev/ui');
+    const dialog = page.getByRole('dialog', { name: 'Playback speed' });
+
+    await page.getByRole('button', { name: 'Open sheet' }).click();
+    await expect(dialog).toBeVisible();
+    await page.goBack();
+    await expect(dialog).toBeHidden();
+    expect(new URL(page.url()).pathname).toBe('/dev/ui');
+
+    await page.getByRole('button', { name: 'Open sheet' }).click();
+    await dialog.getByRole('button', { name: '1.5×' }).click();
+    await expect(dialog).toBeHidden();
+    await expect(page.getByTestId('sheet-value')).toHaveText('Speed: 1.5×');
+
+    await page.getByRole('button', { name: 'Open sheet' }).click();
+    await page.keyboard.press('Escape');
+    await expect(dialog).toBeHidden();
+
+    // Three open/close cycles later, one Back still returns to the previous page.
+    await page.waitForTimeout(100);
+    await page.goBack();
+    await expect(page).toHaveURL(/\/$/);
+  });
+
+  test('book card on touch: the … button opens the actions sheet with Like in it', async ({
+    browser,
+  }) => {
+    const context = await browser.newContext({
+      viewport: PHONE,
+      hasTouch: true,
+      isMobile: true,
+      locale: 'en-US',
+    });
+    const page = await context.newPage();
+    await page.goto('/dev/ui');
+    const card = page.getByRole('article').filter({ hasText: 'Кобзар' });
+
+    await expect(card.getByRole('button', { name: 'Play Кобзар' })).toBeHidden();
+    await card.getByRole('button', { name: 'More actions' }).tap();
+
+    const sheet = page.getByRole('dialog', { name: 'Book actions' });
+    await expect(sheet.getByRole('button')).toHaveText([
+      'Play',
+      'Like',
+      'Add to Listen later',
+      'Download',
+      'Go to author',
+      'Share',
+    ]);
+    await sheet.getByRole('button', { name: 'Like' }).tap();
+    await expect(sheet).toBeHidden();
+    await expect(card.getByText('Liked')).toBeAttached();
+    await context.close();
+  });
+});
