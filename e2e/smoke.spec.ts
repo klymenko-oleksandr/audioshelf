@@ -99,3 +99,85 @@ test.describe('shell', () => {
     await expect(page).toHaveURL(/\/$/);
   });
 });
+
+test.describe('system behaviours', () => {
+  test.use({ locale: 'en-US' });
+
+  test('the splash covers a cold start and is gone once the app is ready', async ({ page }) => {
+    await open(page, '/');
+    await expect(page.locator('html')).toHaveAttribute('data-app-ready', '');
+    await expect(page.locator('#splash')).toBeHidden();
+  });
+
+  test('a held splash reveals the slow-connection message after 3 s', async ({ page }) => {
+    await open(page, '/?splash=hold');
+    const splash = page.locator('#splash');
+    await expect(splash).toBeVisible();
+    await expect(splash.getByText('Still loading')).toBeHidden();
+    await expect(splash.getByText('Still loading')).toBeVisible({ timeout: 5000 });
+    await expect(splash.getByRole('link', { name: 'Reload' })).toBeHidden();
+  });
+
+  test('toasts: one at a time, Undo runs the action, errors are alerts', async ({ page }) => {
+    await open(page, '/dev/ui');
+    await page.getByRole('button', { name: 'Plain' }).click();
+    await expect(page.getByRole('status').getByText('Dracula is ready offline')).toBeVisible();
+
+    await page.getByRole('button', { name: 'With Undo' }).click();
+    await expect(page.getByText('Dracula is ready offline')).toBeHidden();
+    await expect(page.getByText('Added to Listen later')).toBeVisible();
+
+    await page.getByRole('button', { name: 'Undo', exact: true }).click();
+    await expect(page.getByText('Removed from Listen later')).toBeVisible();
+
+    await page.getByRole('button', { name: 'Error', exact: true }).click();
+    const alert = page.getByRole('alert').filter({ hasText: "Couldn't download Dracula" });
+    await expect(alert).toBeVisible();
+    await alert.getByRole('button', { name: 'Close' }).click();
+    await expect(alert).toBeHidden();
+  });
+
+  test('the toast sits above the player on desktop and on phone', async ({ page }) => {
+    for (const size of [DESKTOP, PHONE]) {
+      await open(page, '/dev/ui', size);
+      await page.getByRole('button', { name: 'Plain' }).click();
+      const toastBox = await page.getByText('Dracula is ready offline').boundingBox();
+      const player = await page.getByRole('region', { name: 'Player' }).boundingBox();
+      expect(toastBox && player && toastBox.y + toastBox.height <= player.y).toBe(true);
+    }
+  });
+
+  test('loader timing: no skeleton for a fast load, 300–900 ms for the PRD example', async ({
+    page,
+  }) => {
+    await open(page, '/dev/ui');
+    const log = page.getByTestId('loader-log');
+
+    await page.getByRole('button', { name: 'Load 200 ms' }).click();
+    await page.waitForTimeout(700);
+    await expect(log).toHaveText('Loading for 200 ms');
+
+    await page.getByRole('button', { name: 'Load 400 ms' }).click();
+    await expect(log).toContainText('skeleton hidden at');
+    const [shown = 0, hidden = 0] =
+      ((await log.textContent()) ?? '')
+        .match(/at (\d+) ms/g)
+        ?.map((m) => Number(m.replace(/\D/g, ''))) ?? [];
+    expect(shown).toBeGreaterThanOrEqual(290);
+    expect(shown).toBeLessThan(400);
+    expect(hidden - shown).toBeGreaterThanOrEqual(590);
+    expect(hidden - shown).toBeLessThan(750);
+  });
+
+  test('a broken page shows the inline error inside the shell and can retry', async ({ page }) => {
+    await open(page, '/dev/ui');
+    await page.getByRole('button', { name: 'Break this page' }).click();
+
+    await expect(page.getByRole('heading', { name: "This page didn't load" })).toBeVisible();
+    await expect(page.getByRole('complementary')).toBeVisible();
+    await expect(page.getByRole('region', { name: 'Player' })).toBeVisible();
+
+    await page.getByRole('button', { name: 'Try again' }).click();
+    await expect(page.getByRole('heading', { level: 1, name: 'UI showcase' })).toBeVisible();
+  });
+});
