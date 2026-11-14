@@ -40,6 +40,7 @@ First e2e run locally: `npx playwright install chromium`, or use your own Chrome
 ```
 app/            routes (App Router)
 features/       player, sync, downloads, catalogue, library, admin — one folder per slice
+components/shell/  app shell: sidebar, icon rail, tab bar, top bar
 components/ui/  Sasha UI components
 lib/            db (Drizzle client), r2 (storage keys + client), auth
 db/             Drizzle schema + SQL migrations
@@ -67,3 +68,13 @@ e2e/            Playwright tests
 GitHub Actions runs lint, format check, typecheck, unit tests and the Playwright smoke test on
 every pull request. Vercel builds a preview for every pull request and deploys `main` to
 production.
+
+## Design system
+
+Tokens live in `app/globals.css` (Sasha UI: Nova, zinc, green primary) and are exposed as Tailwind
+colours (`bg-primary`, `text-muted-foreground`, `text-brand`, …) and type utilities (`text-h1` …
+`text-caption`). Colours use `light-dark()`: the theme follows the system and can be forced with
+`data-theme="light|dark"` on `<html>`. Use `text-brand` for green text and icons, never
+`text-primary`. `lib/ui/tokens.test.ts` checks the contrast of every pair the UI relies on.
+Fonts are self-hosted (Fontsource): Instrument Sans for headings — with Geist as the Cyrillic
+fallback, because Instrument Sans has no Cyrillic — and Geist Mono for everything else.
