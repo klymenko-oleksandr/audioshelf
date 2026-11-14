@@ -1,6 +1,7 @@
 import { RiGoogleFill, RiSearchLine } from '@remixicon/react';
 import Link from 'next/link';
 import { getTranslations } from 'next-intl/server';
+import { buttonVariants } from '@/components/ui/button';
 import { BrandLink } from './brand';
 
 /**
@@ -42,10 +43,7 @@ export async function TopBar() {
 
       <div className="hidden grow lg:block" />
 
-      <Link
-        href="/signin"
-        className="bg-primary text-primary-foreground hover:bg-primary/90 inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md px-3 text-[13px] font-medium shadow-xs"
-      >
+      <Link href="/signin" className={buttonVariants({ className: 'px-3' })}>
         <RiGoogleFill size={16} aria-hidden className="hidden md:block" />
         {t('auth.signIn')}
       </Link>
