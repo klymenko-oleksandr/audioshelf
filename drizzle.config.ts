@@ -17,6 +17,8 @@ export default defineConfig({
   dialect: 'postgresql',
   schema: './db/schema.ts',
   out: './db/migrations',
+  // Columns are snake_case in Postgres, camelCase in TypeScript. Must match lib/db.
+  casing: 'snake_case',
   dbCredentials: { url: url ?? 'postgresql://missing-DATABASE_URL' },
   // Keep the bookkeeping table in `public` so the app owns a single schema.
   migrations: { schema: 'public', table: '__drizzle_migrations' },
