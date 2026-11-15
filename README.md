@@ -56,8 +56,11 @@ e2e/            Playwright tests
 - **Database**: only the server talks to Postgres, through `getDb()` in `lib/db`. Schema changes
   go through `db/schema.ts` → `npm run db:generate` → review the SQL → `npm run db:migrate`.
   The v1 tables are parked in the `legacy_v1` schema and are not managed by Drizzle.
-- **Storage**: object keys come from `lib/r2/keys.ts` (`books/{bookId}/…`, content-addressed,
-  immutable). Never overwrite a key; upload a new one.
+- **Storage**: object keys come from `lib/r2/keys.ts`:
+  `books/{book-slug}/audio/{NN}-{chapter-slug}-{hash8}.mp3` and
+  `books/{book-slug}/cover/{hash8}-{size}.webp` — readable, grouped per book, and unique to
+  the file's bytes. Never overwrite a key; a replaced file gets a new one. Names are a
+  snapshot from upload time: always read the key stored in the database.
 - **i18n**: the language is stored in the `locale` cookie, falling back to the browser language,
   then Ukrainian. Add a string to both `messages/uk.json` and `messages/en.json` — a unit test
   fails if the keys differ.
