@@ -26,5 +26,16 @@ Saving: every 5 s while playing, and on pause, seek, chapter change, tab hide an
 Saved positions are cached in memory so Play can call `audio.play()` synchronously inside the
 click, which iOS requires.
 
-Coming in Phase 2c: the full-screen player with `#player`, the speed, sleep and chapters
-sheets, and keyboard shortcuts.
+Sleep timer (`setSleepTimer(minutes | 'chapter' | null)`): the volume fades over the last 10 s,
+then playback pauses; "end of chapter" lands exactly on the chapter boundary. Any manual play
+or pause, starting another book or closing the player cancels it.
+
+UI on top of the bar:
+
+- `ui/player-ui.ts` — the full-screen player is open while the URL says `#player` (Back closes
+  it, a reload keeps it); which sheet is open is plain memory.
+- `components/now-playing.tsx` — the full-screen player; its scrubber is chapter-scoped.
+- `components/player-sheets.tsx` — speed, sleep timer and chapters sheets (a drawer on phones,
+  a centred card from 768 px). They nest inside the full-screen player when it is open.
+- `ui/shortcuts.ts` — Space play/pause, ←/→ back 15 s / forward 30 s, Shift+←/→ previous /
+  next chapter. Never taken from a focused text field, button, slider or menu.

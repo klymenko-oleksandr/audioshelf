@@ -47,6 +47,8 @@ export interface PlayerBarViewProps {
   positionLabel?: string;
   timeLeftLabel?: string;
   speedLabel?: string;
+  /** Time left on the sleep timer ("12:40"); shown next to the timer button while it runs. */
+  sleepLabel?: string;
   liked?: boolean;
   onPlayPause?: () => void;
   onSkipBack?: () => void;
@@ -335,6 +337,7 @@ export function PlayerBarView(props: PlayerBarViewProps) {
           type="button"
           onClick={props.onOpen}
           disabled={!props.onOpen}
+          aria-label={props.onOpen ? `${t('open')}: ${book.title}` : undefined}
           className="flex min-w-0 items-center gap-3 rounded-md text-left disabled:cursor-default"
         >
           {cover('size-13 rounded-md')}
@@ -419,7 +422,18 @@ export function PlayerBarView(props: PlayerBarViewProps) {
               {speedLabel}
             </Button>
           ) : null}
-          {props.onSleepTimer ? (
+          {props.onSleepTimer && props.sleepLabel ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              aria-label={t('sleepOn', { time: props.sleepLabel })}
+              onClick={props.onSleepTimer}
+              className="text-brand tabular-nums"
+            >
+              <RiTimerLine aria-hidden />
+              {props.sleepLabel}
+            </Button>
+          ) : props.onSleepTimer ? (
             <IconButton label={t('sleepTimer')} onClick={props.onSleepTimer}>
               <RiTimerLine size={18} aria-hidden />
             </IconButton>

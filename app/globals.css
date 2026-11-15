@@ -320,3 +320,35 @@
     height: 44px;
   }
 }
+
+/* The full-screen player's scrubber (canvas: NowPlaying): 6 px brand track, 20 px thumb. */
+.scrubber-lg {
+  height: 28px;
+}
+.scrubber-lg::-webkit-slider-runnable-track {
+  height: 6px;
+  background: linear-gradient(
+    to right,
+    var(--primary) var(--scrub, 0%),
+    var(--muted) var(--scrub, 0%)
+  );
+}
+.scrubber-lg::-moz-range-track {
+  height: 6px;
+}
+.scrubber-lg::-moz-range-progress {
+  height: 6px;
+  background: var(--primary);
+}
+.scrubber-lg::-webkit-slider-thumb {
+  width: 20px;
+  height: 20px;
+  margin-top: -7px;
+  background: var(--primary);
+  box-shadow: var(--shadow-sm, 0 1px 2px rgb(0 0 0 / 0.2));
+}
+.scrubber-lg::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  background: var(--primary);
+}

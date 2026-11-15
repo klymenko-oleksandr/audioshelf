@@ -423,10 +423,160 @@ test.describe('player', () => {
     expect(await positionOf(page)).toBeCloseTo(1.11, 1);
     await bar(page).getByRole('button', { name: 'Previous chapter' }).click();
     expect(await positionOf(page)).toBe(0);
+  });
 
+  test('speed sheet: presets, steps and the slider set the speed', async ({ page }) => {
+    await open(page, '/dev/ui');
+    await page.getByRole('button', { name: 'Play test book' }).click();
     await bar(page).getByRole('button', { name: 'Playback speed' }).click();
-    await expect(bar(page).getByRole('button', { name: 'Playback speed' })).toHaveText('1.25×');
-    await expect(live(page)).toContainText('speed 1.25');
+
+    const sheet = page.getByRole('dialog', { name: 'Playback speed' });
+    await sheet.getByRole('button', { name: '1.25×' }).click();
+    await expect(sheet.getByRole('button', { name: '1.25×' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+    await expect(live(page)).toContainText('speed 1.25 ');
+
+    await sheet.getByRole('button', { name: 'Faster' }).click();
+    await expect(sheet.getByRole('status')).toHaveText('1.35×');
+    await sheet.getByRole('slider', { name: 'Speed' }).focus();
+    await page.keyboard.press('Home');
+    await expect(live(page)).toContainText('speed 0.5 ');
+    await expect(sheet.getByRole('button', { name: 'Slower' })).toBeDisabled();
+
+    await page.keyboard.press('Escape');
+    await expect(sheet).toBeHidden();
+    await expect(bar(page).getByRole('button', { name: 'Playback speed' })).toHaveText('0.5×');
+  });
+
+  test('full-screen player: opens at #player, Back and the close button close it', async ({
+    page,
+  }) => {
+    await open(page, '/dev/ui');
+    await page.getByRole('button', { name: 'Play test book' }).click();
+    await waitForPosition(page, 0.3);
+
+    await bar(page).getByRole('button', { name: 'Open player', exact: true }).click();
+    const full = page.getByTestId('now-playing');
+    await expect(full).toBeVisible();
+    await expect(page).toHaveURL(/\/dev\/ui#player$/);
+    await expect(full.getByTestId('chapter-title')).toHaveText('Tone 1');
+    await expect(full.getByText('Chapter 1 of 3 · Three short tones')).toBeVisible();
+
+    await full.getByRole('button', { name: 'Pause' }).click();
+    await expect(live(page)).toContainText('status paused');
+    await full.getByRole('button', { name: 'Next chapter' }).click();
+    await expect(full.getByTestId('chapter-title')).toHaveText('Tone 2');
+
+    await page.goBack();
+    await expect(full).toBeHidden();
+    await expect(page).toHaveURL(/\/dev\/ui$/);
+
+    await bar(page).getByRole('button', { name: 'Open player', exact: true }).click();
+    await full.getByRole('button', { name: 'Close player' }).click();
+    await expect(full).toBeHidden();
+    await expect(page).toHaveURL(/\/dev\/ui$/);
+
+    // A reload with #player keeps it open; closing then leaves no stray history entry.
+    await bar(page).getByRole('button', { name: 'Open player', exact: true }).click();
+    await page.reload();
+    await expect(full).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(full).toBeHidden();
+    await expect(page).toHaveURL(/\/dev\/ui$/);
+  });
+
+  test('chapters sheet inside the full-screen player: jump to a chapter, Back closes only the sheet', async ({
+    page,
+  }) => {
+    await open(page, '/dev/ui');
+    await page.getByRole('button', { name: 'Play test book' }).click();
+    await bar(page).getByRole('button', { name: 'Pause' }).click();
+    await bar(page).getByRole('button', { name: 'Open player', exact: true }).click();
+    const full = page.getByTestId('now-playing');
+
+    await full.getByRole('button', { name: 'Chapters' }).click();
+    const sheet = page.getByRole('dialog', { name: 'Chapters' });
+    await expect(sheet.getByText('3 chapters')).toBeVisible();
+    await expect(sheet.getByRole('button', { name: /Tone 1/ })).toHaveAttribute(
+      'aria-current',
+      'true',
+    );
+
+    await page.goBack();
+    await expect(sheet).toBeHidden();
+    await expect(full).toBeVisible();
+
+    await full.getByRole('button', { name: 'Chapters' }).click();
+    await sheet.getByRole('button', { name: /Tone 3/ }).click();
+    await expect(sheet).toBeHidden();
+    await expect(live(page)).toContainText('chapter 3');
+    await expect(live(page)).toContainText('status playing');
+    await expect(full.getByTestId('chapter-title')).toHaveText('Tone 3');
+  });
+
+  test('sleep timer: end of chapter stops at the chapter boundary; a manual pause cancels it', async ({
+    page,
+  }) => {
+    await open(page, '/dev/ui');
+    await page.getByRole('button', { name: 'Play test book' }).click();
+    await waitForPosition(page, 0.3);
+
+    await bar(page).getByRole('button', { name: 'Sleep timer' }).click();
+    const sheet = page.getByRole('dialog', { name: 'Sleep timer' });
+    await sheet.getByRole('radio', { name: /End of chapter/ }).click();
+    await expect(sheet).toBeHidden();
+    await expect(live(page)).not.toContainText('sleep off');
+
+    await expect(live(page)).toContainText('status paused', { timeout: 15_000 });
+    expect(await positionOf(page)).toBeCloseTo(6.03, 1); // chapter 1 ends here
+    await expect(live(page)).toContainText('sleep off');
+
+    await bar(page).getByRole('button', { name: 'Play', exact: true }).click();
+    await bar(page).getByRole('button', { name: 'Sleep timer' }).click();
+    await sheet.getByRole('radio', { name: '15 minutes' }).click();
+    await expect(
+      bar(page).getByRole('button', { name: /Sleep timer, stops in 1[45]:/ }),
+    ).toBeVisible();
+
+    await bar(page)
+      .getByRole('button', { name: /Sleep timer, stops in/ })
+      .click();
+    await expect(sheet.getByRole('radio', { name: '15 minutes' })).toBeChecked();
+    await expect(sheet.getByTestId('sheet-note')).toContainText('Stops in 1');
+    await page.keyboard.press('Escape');
+
+    await bar(page).getByRole('button', { name: 'Pause' }).click();
+    await expect(live(page)).toContainText('sleep off');
+  });
+
+  test('keyboard shortcuts: Space, arrows and Shift+arrows, but not while a control has focus', async ({
+    page,
+  }) => {
+    await open(page, '/dev/ui');
+    await page.getByRole('button', { name: 'Play test book' }).click();
+    await waitForPosition(page, 0.3);
+    await page.locator('body').click({ position: { x: 5, y: 5 } }); // focus nothing in particular
+    await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+
+    await page.keyboard.press('Space');
+    await expect(live(page)).toContainText('status paused');
+    await page.keyboard.press('Shift+ArrowRight');
+    expect(await positionOf(page)).toBeCloseTo(6.03, 1);
+    await page.keyboard.press('ArrowRight');
+    expect(await positionOf(page)).toBeCloseTo(16.11, 1);
+    await page.keyboard.press('ArrowLeft');
+    expect(await positionOf(page)).toBeCloseTo(1.11, 1);
+    await page.keyboard.press('Shift+ArrowLeft');
+    expect(await positionOf(page)).toBe(0);
+    await page.keyboard.press('Space');
+    await expect(live(page)).toContainText('status playing');
+
+    // Space on a focused button presses that button and nothing else.
+    await page.getByRole('button', { name: 'With Undo' }).focus();
+    await page.keyboard.press('Space');
+    await expect(live(page)).toContainText('status playing');
   });
 
   test('shows an error with the position kept when audio cannot load, and recovers on retry', async ({

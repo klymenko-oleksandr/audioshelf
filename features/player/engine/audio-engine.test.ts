@@ -2,7 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { chaptersFromTracks, STALL_TIMEOUT_MS, type PlayerBook } from '../core';
 import { createMemoryProgressStore, type ProgressRecord } from '../storage/progress-store';
-import { AudioEngine, SAVE_INTERVAL_MS } from './audio-engine';
+import { AudioEngine, SAVE_INTERVAL_MS, SLEEP_TICK_MS } from './audio-engine';
 import { FakeAudio } from './fake-audio';
 
 function makeBook(id: string, durations: number[], ongoing = false): PlayerBook {
@@ -591,6 +591,148 @@ describe('restoring on app open', () => {
     broken.store.all = () => Promise.reject(new Error('blocked'));
     await broken.engine.init();
     expect(broken.status()).toBe('idle');
+  });
+});
+
+describe('sleep timer', () => {
+  function playing() {
+    const t = setup();
+    t.engine.start(book);
+    t.audio.becomeReady();
+    t.audio.advanceTo(100);
+    return t;
+  }
+  const sleep = (t: ReturnType<typeof setup>) => t.engine.getState().sleep;
+
+  it('pauses after the chosen minutes and then clears itself', () => {
+    const t = playing();
+    t.engine.setSleepTimer(5);
+    expect(sleep(t)).toMatchObject({
+      timer: { kind: 'minutes', minutes: 5 },
+      remainingMs: 300_000,
+    });
+
+    t.tick(299_000);
+    expect(t.status()).toBe('playing');
+    t.tick(1000);
+    expect(t.status()).toBe('paused');
+    expect(sleep(t)).toBeNull();
+    expect(t.audio.volume).toBe(1); // ready for the next Play
+  });
+
+  it('counts down in whole seconds for the display', () => {
+    const t = playing();
+    t.engine.setSleepTimer(5);
+    t.tick(1000);
+    expect(sleep(t)?.remainingMs).toBe(299_000);
+    t.tick(61_000);
+    expect(sleep(t)?.remainingMs).toBe(238_000);
+  });
+
+  it('fades the volume out over the last 10 s', () => {
+    const t = playing();
+    t.engine.setSleepTimer(5);
+    t.tick(289_000);
+    expect(t.audio.volume).toBe(1);
+    t.tick(1000 + SLEEP_TICK_MS); // 9.75 s left
+    expect(t.audio.volume).toBeCloseTo(0.975, 3);
+    t.tick(4750); // 5 s left
+    expect(t.audio.volume).toBeCloseTo(0.5, 3);
+    t.tick(4000); // 1 s left
+    expect(t.audio.volume).toBeCloseTo(0.1, 3);
+  });
+
+  it('"end of chapter" stops at the chapter boundary, wherever the clock is', () => {
+    const t = playing(); // chapter 1 ends at 600
+    t.engine.setSleepTimer('chapter');
+    expect(sleep(t)).toMatchObject({ timer: { kind: 'endOfChapter', chapterEnd: 600 } });
+    expect(sleep(t)?.remainingMs).toBe(500_000);
+
+    t.audio.advanceTo(595);
+    t.tick(SLEEP_TICK_MS);
+    expect(t.status()).toBe('playing');
+    expect(t.audio.volume).toBeCloseTo(0.5, 3); // 5 s of audio left
+
+    t.audio.advanceTo(599.9);
+    t.audio.finishTrack(); // rolls into chapter 2 before the next tick
+    t.tick(SLEEP_TICK_MS);
+    expect(t.status()).toBe('paused');
+    expect(t.position()).toBe(600);
+    expect(sleep(t)).toBeNull();
+  });
+
+  it('"end of chapter" accounts for playback speed', () => {
+    const t = playing();
+    t.engine.setSpeed(2);
+    t.engine.setSleepTimer('chapter');
+    expect(sleep(t)?.remainingMs).toBe(250_000);
+  });
+
+  it('is cancelled by a manual pause or play, and the volume comes back', () => {
+    const t = playing();
+    t.engine.setSleepTimer(5);
+    t.tick(295_000); // inside the fade
+    expect(t.audio.volume).toBeLessThan(1);
+
+    t.engine.pause();
+    expect(sleep(t)).toBeNull();
+    expect(t.audio.volume).toBe(1);
+
+    t.engine.play();
+    t.engine.setSleepTimer(5);
+    t.engine.toggle();
+    expect(sleep(t)).toBeNull();
+
+    t.tick(600_000);
+    expect(t.status()).toBe('paused'); // nothing fires later
+  });
+
+  it('can be replaced and turned off', () => {
+    const t = playing();
+    t.engine.setSleepTimer(5);
+    t.engine.setSleepTimer(30);
+    expect(sleep(t)?.remainingMs).toBe(1_800_000);
+    t.tick(300_000);
+    expect(t.status()).toBe('playing'); // the first timer is gone
+
+    t.engine.setSleepTimer(null);
+    expect(sleep(t)).toBeNull();
+    t.tick(3_600_000);
+    expect(t.status()).toBe('playing');
+  });
+
+  it('does not survive starting another book or closing the player', () => {
+    const t = playing();
+    t.engine.setSleepTimer(5);
+    t.engine.start(other);
+    expect(sleep(t)).toBeNull();
+
+    t.engine.setSleepTimer(5);
+    t.engine.close();
+    expect(sleep(t)).toBeNull();
+  });
+
+  it('needs a book', () => {
+    const t = setup();
+    t.engine.setSleepTimer(5);
+    expect(sleep(t)).toBeNull();
+  });
+});
+
+describe('playChapter', () => {
+  it('jumps to the chapter start and starts playing if it was paused', () => {
+    const t = setup();
+    t.engine.start(book);
+    t.audio.becomeReady();
+    t.engine.pause();
+
+    t.engine.playChapter(2);
+    expect(t.position()).toBe(1800);
+    expect(t.engine.getState().chapterIndex).toBe(2);
+    expect(t.audio.paused).toBe(false);
+
+    t.engine.playChapter(99); // no such chapter
+    expect(t.position()).toBe(1800);
   });
 });
 
