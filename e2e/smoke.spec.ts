@@ -551,6 +551,49 @@ test.describe('player', () => {
     await expect(live(page)).toContainText('sleep off');
   });
 
+  test('desktop full-screen player: inline speed presets and the sleep menu', async ({ page }) => {
+    await open(page, '/dev/ui');
+    await page.getByRole('button', { name: 'Play test book' }).click();
+    await bar(page).getByRole('button', { name: 'Open player', exact: true }).click();
+    const full = page.getByTestId('now-playing');
+
+    const speeds = full.getByRole('group', { name: 'Playback speed' });
+    await speeds.getByRole('button', { name: '1.5×', exact: true }).click();
+    await expect(speeds.getByRole('button', { name: '1.5×', exact: true })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+    await expect(live(page)).toContainText('speed 1.5 ');
+
+    await full.getByRole('button', { name: 'Sleep timer' }).click();
+    await page.getByRole('menuitemradio', { name: '30 minutes' }).click();
+    await expect(
+      full.getByRole('button', { name: /Sleep timer, stops in (30:00|29:)/ }),
+    ).toBeVisible();
+    await expect(page.getByRole('menu')).toBeHidden();
+    await expect(full).toBeVisible(); // the menu closed, the player did not
+
+    await full.getByRole('button', { name: /Sleep timer, stops in/ }).click();
+    await expect(page.getByRole('menuitemradio', { name: '30 minutes' })).toBeChecked();
+    await page.getByRole('menuitemradio', { name: 'Off' }).click();
+    await expect(full.getByRole('button', { name: 'Sleep timer', exact: true })).toBeVisible();
+    await expect(live(page)).toContainText('sleep off');
+  });
+
+  test('phone full-screen player keeps the sheets', async ({ browser }) => {
+    const context = await browser.newContext({ viewport: PHONE, locale: 'en-US' });
+    const page = await context.newPage();
+    await open(page, '/dev/ui', PHONE);
+    await page.getByRole('button', { name: 'Play test book' }).click();
+    await bar(page).getByRole('button', { name: 'Open player', exact: true }).first().click();
+    const full = page.getByTestId('now-playing');
+
+    await expect(full.getByRole('group', { name: 'Playback speed' })).toBeHidden();
+    await full.getByRole('button', { name: 'Playback speed' }).click();
+    await expect(page.getByRole('dialog', { name: 'Playback speed' })).toBeVisible();
+    await context.close();
+  });
+
   test('keyboard shortcuts: Space, arrows and Shift+arrows, but not while a control has focus', async ({
     page,
   }) => {

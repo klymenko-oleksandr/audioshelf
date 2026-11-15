@@ -36,6 +36,7 @@ UI on top of the bar:
   it, a reload keeps it); which sheet is open is plain memory.
 - `components/now-playing.tsx` — the full-screen player; its scrubber is chapter-scoped.
 - `components/player-sheets.tsx` — speed, sleep timer and chapters sheets (a drawer on phones,
-  a centred card from 768 px). They nest inside the full-screen player when it is open.
+  a centred card from 768 px). They nest inside the full-screen player when it is open. From 1024 px the
+  full-screen player has inline speed presets and a sleep menu instead (canvas: NowPlaying).
 - `ui/shortcuts.ts` — Space play/pause, ←/→ back 15 s / forward 30 s, Shift+←/→ previous /
   next chapter. Never taken from a focused text field, button, slider or menu.
