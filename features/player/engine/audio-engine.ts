@@ -12,6 +12,11 @@ import {
   normalizeSpeed,
   previousChapterTarget,
   resumePosition,
+  sleepAtEndOfChapter,
+  sleepExpired,
+  sleepFadeVolume,
+  sleepInMinutes,
+  sleepRemainingMs,
   skipTarget,
   STALL_TIMEOUT_MS,
   toBookTime,
@@ -20,6 +25,7 @@ import {
   type PlayerBook,
   type PlayerEvent,
   type PlayerStatus,
+  type SleepTimer,
   type Timeline,
 } from '../core';
 import type { ProgressRecord, ProgressStore } from '../storage/progress-store';
@@ -50,6 +56,8 @@ export interface PlayerState {
   duration: number;
   chapterIndex: number;
   speed: number;
+  /** The running sleep timer and the wall-clock time left on it, or `null`. */
+  sleep: { timer: SleepTimer; remainingMs: number } | null;
 }
 
 export interface AudioEngineOptions {
@@ -63,6 +71,8 @@ export interface AudioEngineOptions {
 }
 
 export const SAVE_INTERVAL_MS = 5000;
+/** How often the sleep timer is checked; fine enough for a smooth 10 s fade. */
+export const SLEEP_TICK_MS = 250;
 
 export const IDLE_STATE: PlayerState = {
   status: 'idle',
@@ -71,6 +81,7 @@ export const IDLE_STATE: PlayerState = {
   duration: 0,
   chapterIndex: -1,
   speed: DEFAULT_SPEED,
+  sleep: null,
 };
 
 /**
@@ -101,6 +112,7 @@ export class AudioEngine {
   private saveTimer: ReturnType<typeof setInterval> | null = null;
   private ready: Promise<void> | null = null;
   private progressVersion = 0;
+  private sleepTicker: ReturnType<typeof setInterval> | null = null;
 
   constructor(options: AudioEngineOptions) {
     this.options = { now: Date.now, ...options };
@@ -161,6 +173,7 @@ export class AudioEngine {
           duration: this.timeline.duration,
           chapterIndex: chapterIndexAt(book.chapters, position),
           speed: normalizeSpeed(last.speed),
+          sleep: null,
         });
       });
     return this.ready;
@@ -185,6 +198,7 @@ export class AudioEngine {
    */
   start(book: PlayerBook, position?: number): void {
     if (this.state.book && this.state.book.id !== book.id) this.save();
+    this.clearSleep();
 
     const saved = this.progress.get(book.id);
     this.timeline = buildTimeline(book.tracks);
@@ -201,14 +215,17 @@ export class AudioEngine {
       duration,
       chapterIndex: chapterIndexAt(book.chapters, startAt),
       speed: normalizeSpeed(saved?.speed ?? DEFAULT_SPEED),
+      sleep: null,
     });
     this.loadAt(startAt, true);
     this.save();
   }
 
+  /** Play, pressed by the listener. Like any manual play or pause, it cancels the sleep timer. */
   play(): void {
     const { status, book } = this.state;
     if (!book) return;
+    this.clearSleep();
 
     if (status === 'paused') {
       this.dispatch('PLAY');
@@ -223,7 +240,13 @@ export class AudioEngine {
     }
   }
 
+  /** Pause, pressed by the listener (or another tab taking over). Cancels the sleep timer. */
   pause(): void {
+    this.clearSleep();
+    this.pausePlayback();
+  }
+
+  private pausePlayback(): void {
     if (!wantsToPlay(this.state.status)) return;
     this.dispatch('PAUSE');
     this.audio?.pause();
@@ -280,6 +303,34 @@ export class AudioEngine {
     if (target !== null) this.seek(target);
   }
 
+  /** Play from the start of a chapter of the current book. */
+  playChapter(index: number): void {
+    const chapter = this.state.book?.chapters[index];
+    if (!chapter) return;
+    this.seek(chapter.start);
+    if (!wantsToPlay(this.state.status)) this.play();
+  }
+
+  /**
+   * Sleep timer: a number of minutes, the end of the current chapter, or `null` to turn it
+   * off. The volume fades over the last 10 s, then playback pauses.
+   */
+  setSleepTimer(option: number | 'chapter' | null): void {
+    this.clearSleep();
+    const { book, chapterIndex } = this.state;
+    if (option === null || !book) return;
+
+    const chapter = book.chapters[chapterIndex];
+    const timer =
+      option === 'chapter'
+        ? chapter && sleepAtEndOfChapter(chapter.end)
+        : sleepInMinutes(option, this.options.now());
+    if (!timer) return;
+
+    this.setState({ ...this.state, sleep: { timer, remainingMs: this.sleepRemaining(timer) } });
+    this.sleepTicker = setInterval(() => this.tickSleep(), SLEEP_TICK_MS);
+  }
+
   setSpeed(speed: number): void {
     const normalized = normalizeSpeed(speed);
     if (this.audio) this.audio.playbackRate = normalized;
@@ -290,6 +341,7 @@ export class AudioEngine {
   /** Unload the current book (it was removed, or the listener closed the player). */
   close(): void {
     if (this.state.status === 'idle') return;
+    this.clearSleep();
     this.save();
     this.switching = true;
     this.audio?.pause();
@@ -474,7 +526,52 @@ export class AudioEngine {
     }
   }
 
+  // ── Sleep timer ──────────────────────────────────────────────────────────────
+
+  private sleepRemaining(timer: SleepTimer): number {
+    this.syncPosition();
+    return sleepRemainingMs(timer, {
+      now: this.options.now(),
+      position: this.state.position,
+      speed: this.state.speed,
+    });
+  }
+
+  private tickSleep(): void {
+    const sleep = this.state.sleep;
+    if (!sleep) return;
+
+    const remainingMs = this.sleepRemaining(sleep.timer);
+    if (this.audio) this.audio.volume = sleepFadeVolume(remainingMs);
+
+    if (sleepExpired(remainingMs)) {
+      const { timer } = sleep;
+      this.clearSleep();
+      this.pausePlayback();
+      // Land exactly on the chapter boundary, so Play continues with the next chapter.
+      if (timer.kind === 'endOfChapter' && this.state.position !== timer.chapterEnd) {
+        this.seek(timer.chapterEnd);
+      }
+      return;
+    }
+    // Re-render once a second, not four times: the display shows whole seconds.
+    if (Math.ceil(remainingMs / 1000) !== Math.ceil(sleep.remainingMs / 1000)) {
+      this.setState({ ...this.state, sleep: { ...sleep, remainingMs } });
+    }
+  }
+
+  private clearSleep(): void {
+    if (this.sleepTicker !== null) {
+      clearInterval(this.sleepTicker);
+      this.sleepTicker = null;
+    }
+    if (this.audio) this.audio.volume = 1;
+    if (this.state.sleep) this.setState({ ...this.state, sleep: null });
+  }
+
   private clearTimers(): void {
+    if (this.sleepTicker !== null) clearInterval(this.sleepTicker);
+    this.sleepTicker = null;
     if (this.stallTimer !== null) clearTimeout(this.stallTimer);
     if (this.saveTimer !== null) clearInterval(this.saveTimer);
     this.stallTimer = null;

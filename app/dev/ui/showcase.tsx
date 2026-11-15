@@ -284,7 +284,7 @@ function LivePlayerDemo() {
       </Button>
       <p className="text-muted-foreground basis-full tabular-nums" data-testid="live-player">
         {mine
-          ? `status ${state.status} · position ${state.position.toFixed(1)} s · chapter ${state.chapterIndex + 1} · speed ${state.speed}`
+          ? `status ${state.status} · position ${state.position.toFixed(1)} s · chapter ${state.chapterIndex + 1} · speed ${state.speed} · sleep ${state.sleep ? `${Math.ceil(state.sleep.remainingMs / 1000)} s` : 'off'}`
           : `status ${state.status}`}
       </p>
     </>
@@ -318,7 +318,7 @@ export function Showcase() {
 
       <Section
         title="Live player"
-        note="The real player on three short generated tones (6 s, 6 s, 4 s): it drives the bar at the bottom of the screen. Reload while it plays — it comes back paused at the saved position."
+        note="The real player on three short generated tones (6 s, 6 s, 4 s): it drives the bar at the bottom of the screen. Open the full-screen player from the bar (the URL gets #player, Back closes it); speed, sleep timer and chapters open as sheets. Shortcuts: Space, ←/→, Shift+←/→. Reload while it plays — it comes back paused at the saved position."
       >
         <LivePlayerDemo />
       </Section>

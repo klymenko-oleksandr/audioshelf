@@ -2,39 +2,18 @@
 
 import { useTranslations } from 'next-intl';
 import { useDelayedLoading } from '@/hooks/use-delayed-loading';
-import {
-  formatClock,
-  formatRemaining,
-  formatSpeed,
-  isWaiting,
-  SPEED_PRESETS,
-  splitDuration,
-  type PlayerStatus,
-} from '../core';
+import { formatClock, formatRemaining, formatSpeed, isWaiting, splitDuration } from '../core';
 import { getPlayer, usePlayerState } from '../player';
-import { PlayerBarView, type PlayerViewState } from './player-bar-view';
-
-/** Next preset after the current speed, wrapping around. Interim until the speed sheet (2c). */
-function nextPreset(speed: number): number {
-  return SPEED_PRESETS.find((preset) => preset > speed + 0.001) ?? SPEED_PRESETS[0];
-}
-
-/**
- * The spinner follows the loader timing rule: nothing for the first 300 ms of waiting, then
- * at least 600 ms. Until it shows, the bar keeps looking like it is playing.
- */
-function viewState(status: PlayerStatus, spinnerVisible: boolean): PlayerViewState {
-  if (isWaiting(status)) return spinnerVisible ? status : 'playing';
-  if (status === 'playing' && spinnerVisible) return 'buffering';
-  return status;
-}
+import { openNowPlaying, openSheet } from '../ui/player-ui';
+import { PlayerBarView } from './player-bar-view';
+import { viewState } from './view-state';
 
 /** PlayerBarView connected to the real player. */
 export function PlayerBarLive() {
   const t = useTranslations('player');
   const state = usePlayerState();
   const spinnerVisible = useDelayedLoading(isWaiting(state.status));
-  const { book, position, duration, chapterIndex, speed, status } = state;
+  const { book, position, duration, chapterIndex, speed, status, sleep } = state;
 
   if (!book) return <PlayerBarView state="idle" />;
 
@@ -74,7 +53,11 @@ export function PlayerBarLive() {
       onSeek={(fraction) => player.seek(fraction * duration)}
       onRetry={() => player.retry()}
       onPlayAgain={() => player.play()}
-      onSpeed={() => player.setSpeed(nextPreset(speed))}
+      sleepLabel={sleep ? formatClock(Math.ceil(sleep.remainingMs / 1000)) : undefined}
+      onOpen={openNowPlaying}
+      onSpeed={() => openSheet('speed')}
+      onSleepTimer={() => openSheet('sleep')}
+      onChapters={() => openSheet('chapters')}
     />
   );
 }

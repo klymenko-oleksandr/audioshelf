@@ -72,7 +72,7 @@ export function Toaster() {
   );
 
   return (
-    <div className="pointer-events-none fixed inset-x-2 bottom-[calc(var(--shell-player)+var(--shell-tabbar)+12px)] z-40 flex flex-col md:right-auto md:bottom-[calc(var(--shell-player)+16px)] md:left-[calc(var(--shell-nav)+16px)]">
+    <div className="pointer-events-none fixed inset-x-2 bottom-[calc(var(--shell-player)+var(--shell-tabbar)+12px)] z-60 flex flex-col md:right-auto md:bottom-[calc(var(--shell-player)+16px)] md:left-[calc(var(--shell-nav)+16px)]">
       <div role="status" aria-live="polite">
         {toast && toast.variant !== 'error' ? <ToastCard key={toast.id} toast={toast} /> : null}
       </div>
