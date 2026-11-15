@@ -651,19 +651,85 @@ test.describe('player', () => {
 
     await expect(live(first)).toContainText('status paused');
   });
+});
 
-  test('the home page lists the static books and a book page lists its chapters', async ({
+// Runs against the in-memory database from scripts/e2e-db.mjs (e2e/fixtures/catalogue.sql).
+test.describe('catalogue', () => {
+  test.use({ locale: 'en-US' });
+  const player = (page: Page) => page.getByRole('region', { name: 'Player' });
+
+  test('home lists published books, newest first, and never a draft', async ({ page }) => {
+    await open(page, '/');
+    await expect(page.getByRole('heading', { level: 2, name: 'New releases' })).toBeVisible();
+    await expect(page.getByRole('article')).toHaveCount(2);
+    await expect(page.getByRole('article').first()).toContainText('Три тони');
+    await expect(page.getByText('Чернетка')).toHaveCount(0);
+  });
+
+  test('a book page shows the book from the database; drafts and unknown books are NotFound', async ({
     page,
   }) => {
     await open(page, '/');
-    await expect(page.getByRole('article')).toHaveCount(4);
+    await page.getByRole('link', { name: 'Три тони, Леся Тестова' }).click();
+    await expect(page).toHaveURL(/\/book\/try-tony$/);
+    await expect(page).toHaveTitle(/Три тони/);
+    await expect(page.getByRole('heading', { level: 1, name: 'Три тони' })).toBeVisible();
+    await expect(page.getByText('Коротка книга з трьох тонів')).toBeVisible();
+    await expect(page.getByRole('main').getByRole('listitem')).toHaveCount(3);
 
-    await page.getByRole('link', { name: 'Сіддхартха, Герман Гессе' }).click();
-    await expect(page).toHaveURL(/\/book\/hesse-siddhartha$/);
-    await expect(page.getByRole('heading', { level: 1, name: 'Сіддхартха' })).toBeVisible();
-    await expect(page.getByRole('listitem')).toHaveCount(12);
-    await expect(
-      page.getByRole('main').getByRole('button', { name: 'Play', exact: true }),
-    ).toBeVisible();
+    for (const slug of ['chernetka', 'no-such-book']) {
+      const response = await page.goto(`/book/${slug}`);
+      expect(response?.status()).toBe(404);
+      await expect(page.getByRole('link', { name: 'Go home' })).toBeVisible();
+    }
+  });
+
+  test('Play on the book page loads the tracks and plays; a chapter starts from its beginning', async ({
+    page,
+  }) => {
+    await open(page, '/book/try-tony');
+    const main = page.getByRole('main');
+    await main.getByRole('button', { name: 'Play', exact: true }).click();
+    await expect(player(page).getByRole('button', { name: 'Pause' })).toBeVisible();
+    await expect(main.getByRole('button', { name: 'Pause' })).toBeVisible();
+    await expect(main.getByRole('button', { name: /Перший тон/ })).toHaveAttribute(
+      'aria-current',
+      'true',
+    );
+
+    await main.getByRole('button', { name: /Третій тон/ }).click();
+    await expect(main.getByRole('button', { name: /Третій тон/ })).toHaveAttribute(
+      'aria-current',
+      'true',
+    );
+    await expect(player(page).getByText('Третій тон').first()).toBeVisible();
+  });
+
+  test('a book started from a card comes back after a reload, fetched from the server again', async ({
+    page,
+  }) => {
+    await open(page, '/');
+    const card = page.getByRole('article').filter({ hasText: 'Три тони' });
+    await card.hover();
+    await card.getByRole('button', { name: /^Play/ }).click();
+    await expect(player(page).getByRole('button', { name: 'Pause' })).toBeVisible();
+    await page.waitForTimeout(1200);
+    await player(page).getByRole('button', { name: 'Pause' }).click();
+
+    await page.reload();
+    await expect(player(page).getByText('Три тони', { exact: true }).last()).toBeVisible();
+    await expect(player(page).getByRole('button', { name: 'Play', exact: true })).toBeVisible();
+  });
+
+  test('the player API answers 404 for drafts, unknown ids and junk', async ({ request }) => {
+    const ok = await request.get('/api/player/books/30000000-0000-4000-8000-000000000001');
+    expect(ok.status()).toBe(200);
+    const book = await ok.json();
+    expect(book.tracks).toHaveLength(3);
+    expect(book.tracks[0].url).toMatch(/\/dev\/audio\/tone-1\.mp3$/);
+
+    for (const id of ['30000000-0000-4000-8000-000000000003', 'test-book', 'x%27%3B--']) {
+      expect((await request.get(`/api/player/books/${id}`)).status()).toBe(404);
+    }
   });
 });

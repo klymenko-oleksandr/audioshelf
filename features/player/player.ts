@@ -1,7 +1,7 @@
 'use client';
 
 import { useSyncExternalStore } from 'react';
-import { findBookById } from './data/static-books';
+import { loadPlayerBook } from './data/load-book';
 import { AudioEngine, IDLE_STATE, type PlayerState } from './engine/audio-engine';
 import { attachMediaSession } from './engine/media-session';
 import { createSingleTab } from './engine/single-tab';
@@ -24,7 +24,7 @@ export function getPlayer(): AudioEngine {
   const created = new AudioEngine({
     createAudio: () => new Audio(),
     store: createProgressStore(),
-    resolveBook: findBookById,
+    resolveBook: (bookId) => loadPlayerBook(bookId),
     onPlaybackStart: tabs.announce,
   });
   engine = created;

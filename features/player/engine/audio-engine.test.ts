@@ -26,6 +26,7 @@ function makeBook(id: string, durations: number[], ongoing = false): PlayerBook 
 const book = makeBook('a', [600, 1200, 300]);
 const other = makeBook('b', [5000]);
 const NOW = 1_800_000_000_000;
+type AudioEngineOptionsResolve = ConstructorParameters<typeof AudioEngine>[0]['resolveBook'];
 
 function setup(saved: ProgressRecord[] = []) {
   const audio = new FakeAudio();
@@ -538,6 +539,49 @@ describe('restoring on app open', () => {
     });
     expect(t.audio.loads).toEqual([]);
     expect(t.audio.playCalls).toBe(0);
+  });
+
+  describe('when the book has to be fetched', () => {
+    const asyncEngine = (resolveBook: AudioEngineOptionsResolve, saved = [record('a', 1234)]) =>
+      new AudioEngine({
+        createAudio: () => new FakeAudio(),
+        store: createMemoryProgressStore(saved),
+        resolveBook,
+        now: () => NOW,
+      });
+
+    it('restores once the book arrives; saved progress is usable meanwhile', async () => {
+      let deliver!: (value: typeof book) => void;
+      const engine = asyncEngine(() => new Promise((resolve) => (deliver = resolve)));
+      const ready = engine.init();
+      await vi.waitFor(() => expect(engine.getProgress('a')?.position).toBe(1234));
+      expect(engine.getState().status).toBe('idle');
+
+      deliver(book);
+      await ready;
+      expect(engine.getState()).toMatchObject({ status: 'paused', book, position: 1234 });
+    });
+
+    it('stays idle when the book is gone or the request fails, keeping the position', async () => {
+      for (const resolveBook of [async () => undefined, async () => Promise.reject(new Error())]) {
+        const engine = asyncEngine(resolveBook);
+        await engine.init();
+        expect(engine.getState().status).toBe('idle');
+        expect(engine.getProgress('a')?.position).toBe(1234);
+      }
+    });
+
+    it('does not replace a book the listener started while it was loading', async () => {
+      let deliver!: (value: typeof book) => void;
+      const engine = asyncEngine(() => new Promise((resolve) => (deliver = resolve)));
+      const ready = engine.init();
+      await vi.waitFor(() => expect(engine.getProgress('a')).toBeDefined());
+
+      engine.start(other);
+      deliver(book);
+      await ready;
+      expect(engine.getState().book).toBe(other);
+    });
   });
 
   it('then plays from that position on the first Play, showing it as buffering', async () => {

@@ -17,7 +17,9 @@ The persistent audiobook player (PRD: Player).
   (`usePlayerState`, `useBookProgress`).
 - `components/` — `PlayerBarView` (presentational, all states, three widths), `PlayerBarLive`
   (connected to the engine), `Scrubber`, and the fixed `PlayerBar` slot in the root layout.
-- `data/static-books.ts` — TEMPORARY: the four v1 books and a three-tone test book.
+- `data/load-book.ts` — fetches what the player needs for a book (`/api/player/books/:id`) when
+  Play is pressed or the last book is restored; `play-book.ts` wraps it for cards and pages.
+- `data/test-book.ts` — a three-tone test book for the showcase and the tests.
 
 Position is always **book time** (seconds from the start of the book), never track + offset,
 so replacing or appending tracks keeps saved positions valid.

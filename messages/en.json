@@ -98,7 +98,9 @@
   "pages": {
     "comingSoon": "This screen is on its way.",
     "home": {
-      "title": "Home"
+      "title": "Home",
+      "newReleases": "New releases",
+      "empty": "No books yet. Check back soon."
     },
     "explore": {
       "title": "Explore"
@@ -170,6 +172,7 @@
     "playAgain": "Play again",
     "pause": "Pause",
     "nowPlaying": "Now playing",
-    "comingSoon": "This arrives with the library."
+    "comingSoon": "This arrives with the library.",
+    "playFailed": "Couldn't load this book. Check your connection and try again."
   }
 }

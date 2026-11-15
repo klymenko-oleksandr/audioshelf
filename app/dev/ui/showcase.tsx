@@ -17,7 +17,7 @@ import {
   type BookCardDownload,
 } from '@/features/catalogue/components/book-card';
 import { PlayerBarView, type PlayerViewState } from '@/features/player/components/player-bar-view';
-import { TEST_BOOK } from '@/features/player/data/static-books';
+import { TEST_BOOK } from '@/features/player/data/test-book';
 import { getPlayer, usePlayerState } from '@/features/player/player';
 import { useDelayedLoading } from '@/hooks/use-delayed-loading';
 

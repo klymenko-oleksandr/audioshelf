@@ -3,16 +3,20 @@
 import { RiPauseFill, RiPlayFill } from '@remixicon/react';
 import { useTranslations } from 'next-intl';
 import { Button } from '@/components/ui/button';
-import { formatClock, isFinished, type PlayerBook } from '@/features/player/core';
+import { formatClock, isFinished } from '@/features/player/core';
+import { playBook } from '@/features/player/play-book';
 import { getPlayer, useBookProgress, usePlayerState } from '@/features/player/player';
 import { cn } from '@/lib/utils';
+import type { BookDetail as BookDetailData } from '../data/queries';
 import { BookCover } from './book-cover';
 
 /**
- * TEMPORARY (Phase 2): a bare book page — cover, Play / Resume and the chapter list — to
- * exercise the player. Phase 3 builds the real one (tabs, About, share previews).
+ * The book page body: cover, Play / Resume / Play again, description and the chapter list.
+ * Still the plain Phase 2 layout; the canvas version (tabs, About, actions) comes next.
+ *
+ * It gets the page data (no tracks). Pressing Play or a chapter loads the tracks.
  */
-export function StaticBookDetail({ book }: { book: PlayerBook }) {
+export function BookDetail({ book }: { book: BookDetailData }) {
   const t = useTranslations('book');
   const state = usePlayerState();
   const saved = useBookProgress(book.id);
@@ -22,7 +26,9 @@ export function StaticBookDetail({ book }: { book: PlayerBook }) {
     current &&
     (state.status === 'playing' || state.status === 'buffering' || state.status === 'loading');
   const position = current ? state.position : (saved?.position ?? 0);
-  const duration = book.chapters.at(-1)?.end ?? 0;
+  const duration = book.durationSeconds;
+  const author = book.author?.name ?? '';
+  const failed = { failed: t('playFailed') };
   const finished = saved?.finished ?? isFinished(position, duration);
   const started = position > 0 && !finished;
   const activeChapter = current ? state.chapterIndex : -1;
@@ -31,19 +37,24 @@ export function StaticBookDetail({ book }: { book: PlayerBook }) {
   const onMain = () => {
     if (playingHere) player().pause();
     else if (current && state.status !== 'finished') player().play();
-    else player().start(book);
+    else void playBook(book.id, failed);
   };
 
   return (
     <div className="flex flex-col gap-6 px-4 pt-2 pb-6 md:px-6 md:pt-5 lg:px-8 lg:pt-7">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end">
         <div className="w-40 shrink-0 rounded-xl shadow-sm sm:w-48">
-          <BookCover title={book.title} author={book.author} src={book.coverUrl} seed={book.slug} />
+          <BookCover
+            title={book.title}
+            author={author}
+            src={book.coverLargeUrl ?? book.coverUrl}
+            seed={book.slug}
+          />
         </div>
         <div className="flex min-w-0 flex-col gap-2">
           <h1 className="text-h3 md:text-h2 text-balance">{book.title}</h1>
           <p className="text-muted-foreground">
-            {book.author} · {formatClock(duration)}
+            {[author, formatClock(duration)].filter(Boolean).join(' · ')}
           </p>
           <Button size="lg" className="mt-2 w-fit px-4" onClick={onMain}>
             {playingHere ? <RiPauseFill aria-hidden /> : <RiPlayFill aria-hidden />}
@@ -58,6 +69,10 @@ export function StaticBookDetail({ book }: { book: PlayerBook }) {
         </div>
       </div>
 
+      {book.description ? (
+        <p className="text-muted-foreground max-w-prose whitespace-pre-line">{book.description}</p>
+      ) : null}
+
       <section className="flex flex-col gap-2">
         <h2 className="text-h4">{t('chapters')}</h2>
         <ol className="border-border flex flex-col border-t">
@@ -66,7 +81,7 @@ export function StaticBookDetail({ book }: { book: PlayerBook }) {
               <button
                 type="button"
                 aria-current={index === activeChapter ? 'true' : undefined}
-                onClick={() => player().start(book, chapter.start)}
+                onClick={() => void playBook(book.id, failed, chapter.start)}
                 className={cn(
                   'hover:bg-accent flex min-h-11 w-full items-center gap-3 px-2 py-2 text-left',
                   index === activeChapter && 'font-semibold',

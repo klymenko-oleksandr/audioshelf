@@ -64,7 +64,7 @@ export interface AudioEngineOptions {
   createAudio: () => AudioLike;
   store: ProgressStore;
   /** Finds a book by id, to restore the last one on app open. */
-  resolveBook: (bookId: string) => PlayerBook | undefined;
+  resolveBook: (bookId: string) => PlayerBook | undefined | Promise<PlayerBook | undefined>;
   now?: () => number;
   /** Called whenever this engine starts producing sound (for the one-tab rule). */
   onPlaybackStart?: () => void;
@@ -147,7 +147,7 @@ export class AudioEngine {
     this.ready ??= this.options.store
       .all()
       .catch(() => [] as ProgressRecord[])
-      .then((records) => {
+      .then(async (records) => {
         for (const record of records) {
           // Anything saved since init() started is newer than what the store returned.
           if (!this.progress.has(record.bookId)) this.progress.set(record.bookId, record);
@@ -158,7 +158,17 @@ export class AudioEngine {
         const last = records
           .filter((record) => !record.finished)
           .sort((a, b) => b.updatedAt - a.updatedAt)[0];
-        const book = last && this.options.resolveBook(last.bookId);
+        // Offline or a server error: come up idle rather than fail; the position stays saved.
+        const book = last
+          ? await Promise.resolve()
+              .then(() => {
+                this.emit(); // saved progress is usable while the book is being fetched
+                return this.options.resolveBook(last.bookId);
+              })
+              .catch(() => undefined)
+          : undefined;
+        // The listener may have started something while the book was loading.
+        if (this.state.status !== 'idle') return;
         if (!last || !book) {
           this.emit();
           return;

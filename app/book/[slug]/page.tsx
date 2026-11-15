@@ -1,23 +1,22 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
-import { StaticBookDetail } from '@/features/catalogue/components/static-book-detail';
-import { findBookBySlug, TEST_BOOK } from '@/features/player/data/static-books';
+import { BookDetail } from '@/features/catalogue/components/book-detail';
+import { getBookBySlug } from '@/features/catalogue/data';
 
 type Props = { params: Promise<{ slug: string }> };
 
-// TEMPORARY (Phase 2): only the static books exist. Phase 3 reads from the database.
-function find(slug: string) {
-  const book = findBookBySlug(slug);
-  return book && book !== TEST_BOOK ? book : undefined;
-}
-
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const book = find((await params).slug);
-  return book ? { title: book.title, description: book.author } : {};
+  const book = await getBookBySlug((await params).slug);
+  if (!book) return {};
+  return {
+    title: book.title,
+    description: book.description?.slice(0, 200) ?? book.author?.name,
+  };
 }
 
 export default async function BookPage({ params }: Props) {
-  const book = find((await params).slug);
+  // Unknown, unpublished and deleted books all look the same from outside (PRD).
+  const book = await getBookBySlug((await params).slug);
   if (!book) notFound();
-  return <StaticBookDetail book={book} />;
+  return <BookDetail book={book} />;
 }
