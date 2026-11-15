@@ -1,0 +1,96 @@
+-- One-off seed: copy the four v1 books from `legacy_v1` into the new catalogue tables.
+--
+-- The audio and covers stay where they are (v1 objects under `audio/` and `covers/`); only
+-- the keys are copied. Content track C1 later re-encodes the books under `books/…`.
+--
+-- Safe to run more than once: books that already exist (by slug) are left alone, and on a
+-- database without the v1 tables it does nothing. Run it in the Supabase SQL editor.
+--
+-- Slugs come from lib/slug.ts (official Ukrainian romanisation) and were fixed in Phase 2.
+
+DO $seed$
+DECLARE
+  fiction uuid;
+BEGIN
+  IF to_regclass('legacy_v1."Book"') IS NULL THEN
+    RAISE NOTICE 'legacy_v1."Book" not found: nothing to seed.';
+    RETURN;
+  END IF;
+
+  -- v1 had no categories; publishing needs one. More are added in the admin (Phase 4).
+  INSERT INTO categories (slug, name_uk, name_en, position)
+  VALUES ('fiction', 'Художня література', 'Fiction', 1)
+  ON CONFLICT (slug) DO NOTHING;
+  SELECT id INTO fiction FROM categories WHERE slug = 'fiction';
+
+  DROP TABLE IF EXISTS pg_temp.v1_map;
+  CREATE TEMP TABLE v1_map (v1_id text PRIMARY KEY, book_slug text, author_slug text) ON COMMIT DROP;
+  INSERT INTO v1_map VALUES
+    ('cmjetnl8m0002w69438ax1ppv', 'hesse-siddhartha', 'herman-hesse'),
+    ('cmjha80fa0000y8mpdj47z6tz', 'orwell-kolhosp-tvaryn', 'dzhordzh-orvell'),
+    ('cmjetgivj0000w69407v3o0v5', 'raspe-pryhody-barona-miunkhauzena', 'rudolf-erikh-raspe'),
+    ('cmjak7xzn0000htjw4tydkiu5', 'tolkin-bratstvo-persnia', 'dzhon-tolkin');
+
+  INSERT INTO authors (slug, name)
+  SELECT DISTINCT m.author_slug, b.author
+  FROM legacy_v1."Book" b
+  JOIN v1_map m ON m.v1_id = b.id
+  ON CONFLICT (slug) DO NOTHING;
+
+  -- Only books that are not in the catalogue yet get tracks and chapters below.
+  DROP TABLE IF EXISTS pg_temp.v1_new;
+  CREATE TEMP TABLE v1_new (v1_id text PRIMARY KEY, book_id uuid) ON COMMIT DROP;
+
+  WITH inserted AS (
+    INSERT INTO books (
+      slug, title, description, language, author_id, category_id, status, published_at,
+      cover_large_key, cover_medium_key, cover_small_key, duration_seconds
+    )
+    SELECT
+      m.book_slug,
+      b.title,
+      nullif(btrim(b.description), ''),
+      'uk',
+      a.id,
+      fiction,
+      'published',
+      b."createdAt" AT TIME ZONE 'UTC',
+      coalesce(b."coverLargeKey", b."coverObjectKey"),
+      coalesce(b."coverMediumKey", b."coverLargeKey", b."coverObjectKey"),
+      coalesce(b."coverThumbnailKey", b."coverMediumKey", b."coverObjectKey"),
+      (SELECT coalesce(sum(c.duration), 0) FROM legacy_v1."Chapter" c WHERE c."bookId" = b.id)
+    FROM legacy_v1."Book" b
+    JOIN v1_map m ON m.v1_id = b.id
+    JOIN authors a ON a.slug = m.author_slug
+    ON CONFLICT (slug) DO NOTHING
+    RETURNING id, slug
+  )
+  INSERT INTO v1_new (v1_id, book_id)
+  SELECT m.v1_id, i.id FROM inserted i JOIN v1_map m ON m.book_slug = i.slug;
+
+  -- v1 had one audio file per chapter, so each becomes one track and one chapter.
+  INSERT INTO tracks (book_id, position, r2_key, mime_type, duration_seconds, status)
+  SELECT
+    n.book_id,
+    row_number() OVER (PARTITION BY c."bookId" ORDER BY c."order", c."createdAt"),
+    c."objectKey",
+    coalesce(c."mimeType", 'audio/mpeg'),
+    c.duration,
+    'ready'
+  FROM legacy_v1."Chapter" c
+  JOIN v1_new n ON n.v1_id = c."bookId";
+
+  INSERT INTO chapters (book_id, position, title, start_seconds, end_seconds)
+  SELECT
+    n.book_id,
+    row_number() OVER w,
+    c.title,
+    coalesce(sum(c.duration) OVER (w ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING), 0),
+    sum(c.duration) OVER (w ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)
+  FROM legacy_v1."Chapter" c
+  JOIN v1_new n ON n.v1_id = c."bookId"
+  WINDOW w AS (PARTITION BY c."bookId" ORDER BY c."order", c."createdAt");
+
+  RAISE NOTICE 'Seeded % book(s) from legacy_v1.', (SELECT count(*) FROM v1_new);
+END
+$seed$;

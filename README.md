@@ -43,7 +43,7 @@ features/       player, sync, downloads, catalogue, library, admin — one folde
 components/shell/  app shell: sidebar, icon rail, tab bar, top bar
 components/ui/  Sasha UI components
 lib/            db (Drizzle client), r2 (storage keys + client), auth
-db/             Drizzle schema + SQL migrations
+db/             Drizzle schema, SQL migrations, one-off seeds
 i18n/           locale resolution (cookie → browser → uk), next-intl request config
 messages/       uk.json, en.json — every UI string goes through these
 scripts/        operational scripts and (later) the content pipeline
@@ -56,6 +56,12 @@ e2e/            Playwright tests
 - **Database**: only the server talks to Postgres, through `getDb()` in `lib/db`. Schema changes
   go through `db/schema.ts` → `npm run db:generate` → review the SQL → `npm run db:migrate`.
   The v1 tables are parked in the `legacy_v1` schema and are not managed by Drizzle.
+  Columns are `snake_case` in Postgres and `camelCase` in TypeScript (`casing` is set in both
+  `drizzle.config.ts` and `lib/db`). Every table has Row Level Security enabled with no
+  policies, because Supabase exposes `public` through its Data API and only the server may
+  read these tables.
+- **Seed.** `db/seed/v1-books.sql` copies the four v1 books from `legacy_v1` into the catalogue
+  tables (run once in the Supabase SQL editor; safe to re-run).
 - **Storage**: object keys come from `lib/r2/keys.ts`:
   `books/{book-slug}/audio/{NN}-{chapter-slug}-{hash8}.mp3` and
   `books/{book-slug}/cover/{hash8}-{size}.webp` — readable, grouped per book, and unique to

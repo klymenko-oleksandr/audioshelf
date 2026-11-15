@@ -21,7 +21,7 @@ export function getDb(): Database {
       prepare: false,
       max: process.env.NODE_ENV === 'production' ? 1 : 5,
     });
-    globalForDb.__audioshelfDb = drizzle(client, { schema });
+    globalForDb.__audioshelfDb = drizzle(client, { schema, casing: 'snake_case' });
   }
   return globalForDb.__audioshelfDb;
 }
