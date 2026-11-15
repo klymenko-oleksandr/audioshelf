@@ -1,3 +1,6 @@
+'use client';
+
+import { useState } from 'react';
 import { cn } from '@/lib/utils';
 
 /** Generated cover palettes from the canvas, used when a book has no poster. */
@@ -46,7 +49,10 @@ export function BookCover({
   reserveBottom = false,
   className,
 }: BookCoverProps) {
-  if (src) {
+  // A poster that is missing or fails to load falls back to the generated cover.
+  const [failedSrc, setFailedSrc] = useState<string | null>(null);
+
+  if (src && src !== failedSrc) {
     return (
       // Posters come from the R2 CDN in fixed sizes; next/image would only re-encode them.
       // eslint-disable-next-line @next/next/no-img-element
@@ -55,6 +61,7 @@ export function BookCover({
         alt=""
         loading="lazy"
         decoding="async"
+        onError={() => setFailedSrc(src)}
         className={cn('bg-muted aspect-square w-full rounded-[inherit] object-cover', className)}
       />
     );

@@ -11,7 +11,6 @@ const base: PlayerBarViewProps = {
   chapterLabel: 'Ch. 6 · The Man with the Twisted Lip',
   chapterTitle: 'The Man with the Twisted Lip',
   bookProgressPct: 46,
-  chapterProgressPct: 52,
   elapsedLabel: '27:14',
   remainingLabel: '−25:26',
 };
@@ -81,6 +80,27 @@ describe('PlayerBarView', () => {
     const bars = screen.getAllByRole('progressbar', { name: 'Book progress 46%' });
     expect(bars).toHaveLength(LAYOUTS);
     expect(bars[0]).toHaveAttribute('aria-valuenow', '46');
+  });
+
+  it('renders optional controls only when they can do something', () => {
+    const { unmount } = renderBar();
+    expect(screen.queryByRole('button', { name: 'Playback speed' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Sleep timer' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('slider')).not.toBeInTheDocument();
+    unmount();
+
+    renderBar({ onSpeed: vi.fn(), onSeek: vi.fn(), positionText: '27:14 of 5:38:11' });
+    expect(screen.getAllByRole('button', { name: 'Playback speed' })).toHaveLength(2);
+    expect(screen.getByRole('slider', { name: 'Position in book' })).toHaveAttribute(
+      'aria-valuetext',
+      '27:14 of 5:38:11',
+    );
+  });
+
+  it('says "up to date" instead of "finished" for an ongoing book', () => {
+    renderBar({ state: 'finished', upToDate: true });
+    expect(screen.getAllByText("You're up to date").length).toBeGreaterThan(0);
+    expect(screen.queryByText('Finished')).not.toBeInTheDocument();
   });
 
   it('reports play/pause and like clicks', async () => {

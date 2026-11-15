@@ -67,7 +67,14 @@
     "errorHintShort": "Saved at {position} · check connection",
     "retry": "Try again",
     "finished": "Finished",
-    "playAgain": "Play again"
+    "playAgain": "Play again",
+    "scrubber": "Position in book",
+    "positionText": "{position} of {duration}",
+    "upToDate": "You're up to date",
+    "chapterLabel": "Ch. {number} · {title}",
+    "chapterShort": "Ch. {number}",
+    "minutesLeft": "{minutes} min left",
+    "hoursLeft": "{hours} h {minutes} min left"
   },
   "pages": {
     "comingSoon": "This screen is on its way.",
@@ -132,5 +139,18 @@
     "goToAuthor": "Go to author",
     "share": "Share",
     "listened": "{pct}% listened · {duration}"
+  },
+  "common": {
+    "durationHm": "{hours} h {minutes} m",
+    "durationM": "{minutes} m"
+  },
+  "book": {
+    "chapters": "Chapters",
+    "play": "Play",
+    "resume": "Resume",
+    "playAgain": "Play again",
+    "pause": "Pause",
+    "nowPlaying": "Now playing",
+    "comingSoon": "This arrives with the library."
   }
 }

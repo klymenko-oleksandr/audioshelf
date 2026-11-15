@@ -67,7 +67,14 @@
     "errorHintShort": "Збережено на {position} · перевірте з'єднання",
     "retry": "Спробувати ще раз",
     "finished": "Прослухано",
-    "playAgain": "Слухати знову"
+    "playAgain": "Слухати знову",
+    "scrubber": "Позиція в книзі",
+    "positionText": "{position} із {duration}",
+    "upToDate": "Ви все прослухали",
+    "chapterLabel": "Розд. {number} · {title}",
+    "chapterShort": "Розд. {number}",
+    "minutesLeft": "Залишилось {minutes} хв",
+    "hoursLeft": "Залишилось {hours} год {minutes} хв"
   },
   "pages": {
     "comingSoon": "Цей екран уже в роботі.",
@@ -132,5 +139,18 @@
     "goToAuthor": "До автора",
     "share": "Поділитися",
     "listened": "Прослухано {pct}% · {duration}"
+  },
+  "common": {
+    "durationHm": "{hours} год {minutes} хв",
+    "durationM": "{minutes} хв"
+  },
+  "book": {
+    "chapters": "Розділи",
+    "play": "Слухати",
+    "resume": "Продовжити",
+    "playAgain": "Слухати знову",
+    "pause": "Пауза",
+    "nowPlaying": "Зараз грає",
+    "comingSoon": "Це з'явиться разом із бібліотекою."
   }
 }

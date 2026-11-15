@@ -17,6 +17,8 @@ import {
   type BookCardDownload,
 } from '@/features/catalogue/components/book-card';
 import { PlayerBarView, type PlayerViewState } from '@/features/player/components/player-bar-view';
+import { TEST_BOOK } from '@/features/player/data/static-books';
+import { getPlayer, usePlayerState } from '@/features/player/player';
 import { useDelayedLoading } from '@/hooks/use-delayed-loading';
 
 function Section({ title, note, children }: { title: string; note: string; children: ReactNode }) {
@@ -213,7 +215,7 @@ function PlayerBarDemo() {
           chapterLabel="Ch. 6 · The Man with the Twisted Lip"
           chapterTitle="The Man with the Twisted Lip"
           bookProgressPct={state === 'finished' ? 100 : 46}
-          chapterProgressPct={52}
+          positionText="2:51:14 of 10:24:00"
           elapsedLabel="27:14"
           remainingLabel="−25:26"
           positionLabel="Ch. 6 · 27:14 / 52:40"
@@ -224,6 +226,11 @@ function PlayerBarDemo() {
           onRetry={() => setState('loading')}
           onPlayAgain={() => setState('playing')}
           onToggleLike={() => setLiked(!liked)}
+          onSpeed={() => toast({ title: 'Speed' })}
+          onSleepTimer={() => toast({ title: 'Sleep timer' })}
+          onChapters={() => toast({ title: 'Chapters' })}
+          onOpen={() => toast({ title: 'Open player' })}
+          onSeek={(fraction) => toast({ title: `Seek to ${Math.round(fraction * 100)}%` })}
         />
       </div>
     </>
@@ -260,6 +267,30 @@ function SheetDemo() {
   );
 }
 
+function LivePlayerDemo() {
+  const state = usePlayerState();
+  const mine = state.book?.id === TEST_BOOK.id;
+
+  return (
+    <>
+      <Button variant="outline" onClick={() => getPlayer().start(TEST_BOOK)}>
+        Play test book
+      </Button>
+      <Button variant="outline" onClick={() => getPlayer().start(TEST_BOOK, 5)}>
+        Play from 0:05
+      </Button>
+      <Button variant="outline" onClick={() => getPlayer().close()}>
+        Close player
+      </Button>
+      <p className="text-muted-foreground basis-full tabular-nums" data-testid="live-player">
+        {mine
+          ? `status ${state.status} · position ${state.position.toFixed(1)} s · chapter ${state.chapterIndex + 1} · speed ${state.speed}`
+          : `status ${state.status}`}
+      </p>
+    </>
+  );
+}
+
 function Bomb(): ReactNode {
   throw new Error('Showcase: thrown on purpose to demonstrate the error boundary');
 }
@@ -283,6 +314,13 @@ export function Showcase() {
         note="Badges are always visible. With a mouse: hover or tab to a card for play, heart and the menu. On touch: the … button or a long press opens the actions sheet."
       >
         <BookCardDemo />
+      </Section>
+
+      <Section
+        title="Live player"
+        note="The real player on three short generated tones (6 s, 6 s, 4 s): it drives the bar at the bottom of the screen. Reload while it plays — it comes back paused at the saved position."
+      >
+        <LivePlayerDemo />
       </Section>
 
       <Section

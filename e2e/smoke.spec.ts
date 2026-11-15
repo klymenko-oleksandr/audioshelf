@@ -312,3 +312,165 @@ test.describe('components', () => {
     await context.close();
   });
 });
+
+test.describe('player', () => {
+  test.use({ locale: 'en-US' });
+
+  const live = (page: Page) => page.getByTestId('live-player');
+  const bar = (page: Page) => page.getByRole('region', { name: 'Player' });
+  const positionOf = async (page: Page) =>
+    Number(((await live(page).textContent()) ?? '').match(/position ([\d.]+)/)?.[1] ?? Number.NaN);
+  const waitForPosition = (page: Page, atLeast: number) =>
+    expect.poll(() => positionOf(page), { timeout: 15_000 }).toBeGreaterThanOrEqual(atLeast);
+
+  test('plays, pauses and resumes; the bar shows the book and the position moves', async ({
+    page,
+  }) => {
+    await open(page, '/dev/ui');
+    await page.getByRole('button', { name: 'Play test book' }).click();
+
+    await expect(live(page)).toContainText('status playing');
+    await expect(bar(page).getByText('Test book', { exact: true }).last()).toBeVisible();
+    await expect(bar(page).getByText('Ch. 1 · Tone 1')).toBeVisible();
+    await waitForPosition(page, 1);
+
+    await bar(page).getByRole('button', { name: 'Pause' }).click();
+    await expect(live(page)).toContainText('status paused');
+    const paused = await positionOf(page);
+    await page.waitForTimeout(700);
+    expect(await positionOf(page)).toBe(paused);
+
+    await bar(page).getByRole('button', { name: 'Play', exact: true }).click();
+    await expect(live(page)).toContainText('status playing');
+    await waitForPosition(page, paused + 0.5);
+  });
+
+  test('continues from one track into the next as one book', async ({ page }) => {
+    await open(page, '/dev/ui');
+    await page.getByRole('button', { name: 'Play from 0:05' }).click();
+    await waitForPosition(page, 6.5); // track 1 is 6.03 s long
+    await expect(live(page)).toContainText('status playing');
+    await expect(live(page)).toContainText('chapter 2');
+    await expect(bar(page).getByText('Ch. 2 · Tone 2')).toBeVisible();
+  });
+
+  test('keeps playing across navigation', async ({ page }) => {
+    await open(page, '/dev/ui');
+    await page.getByRole('button', { name: 'Play test book' }).click();
+    await waitForPosition(page, 0.5);
+
+    await page.getByRole('complementary').getByRole('link', { name: 'Library' }).click();
+    await expect(page.getByRole('heading', { level: 1, name: 'Library' })).toBeVisible();
+
+    const slider = bar(page).getByRole('slider', { name: 'Position in book' });
+    const before = await slider.getAttribute('aria-valuetext');
+    await expect(bar(page).getByRole('button', { name: 'Pause' })).toBeVisible();
+    await expect.poll(() => slider.getAttribute('aria-valuetext')).not.toBe(before);
+  });
+
+  test('a reload brings the book back paused at the saved position, and Play continues from there', async ({
+    page,
+  }) => {
+    await open(page, '/dev/ui');
+    await page.getByRole('button', { name: 'Play from 0:05' }).click();
+    await waitForPosition(page, 7);
+    await bar(page).getByRole('button', { name: 'Pause' }).click();
+    const saved = await positionOf(page);
+
+    await page.reload();
+    await expect(live(page)).toContainText('status paused');
+    expect(await positionOf(page)).toBeCloseTo(saved, 1);
+    await expect(bar(page).getByText('Test book', { exact: true }).last()).toBeVisible();
+
+    await bar(page).getByRole('button', { name: 'Play', exact: true }).click();
+    await waitForPosition(page, saved + 0.5);
+    await expect(live(page)).toContainText('chapter 2');
+  });
+
+  test('a crash while playing loses at most the save interval', async ({ page }) => {
+    await open(page, '/dev/ui');
+    await page.getByRole('button', { name: 'Play test book' }).click();
+    await waitForPosition(page, 6.5); // past one 5 s periodic save and a chapter change
+
+    await page.reload(); // no pause, no goodbye
+    await expect(live(page)).toContainText('status paused');
+    expect(await positionOf(page)).toBeGreaterThanOrEqual(5);
+  });
+
+  test('finishes at the end and plays again from the start', async ({ page }) => {
+    await open(page, '/dev/ui');
+    await page.getByRole('button', { name: 'Play from 0:05' }).click();
+    await bar(page).getByRole('slider', { name: 'Position in book' }).focus();
+    await page.keyboard.press('End');
+
+    await expect(live(page)).toContainText('status finished', { timeout: 15_000 });
+    await bar(page).getByRole('button', { name: 'Play again' }).click();
+    await expect(live(page)).toContainText('status playing');
+    await expect(live(page)).toContainText('chapter 1');
+  });
+
+  test('skip, chapter jumps, seek and speed work from the bar', async ({ page }) => {
+    await open(page, '/dev/ui');
+    await page.getByRole('button', { name: 'Play test book' }).click();
+    await waitForPosition(page, 0.3);
+    await bar(page).getByRole('button', { name: 'Pause' }).click();
+
+    await bar(page).getByRole('button', { name: 'Next chapter' }).click();
+    expect(await positionOf(page)).toBeCloseTo(6.03, 1);
+    await bar(page).getByRole('button', { name: 'Forward 30 seconds' }).click();
+    expect(await positionOf(page)).toBeCloseTo(16.11, 1); // clamped to the end of the book
+    await bar(page).getByRole('button', { name: 'Back 15 seconds' }).click();
+    expect(await positionOf(page)).toBeCloseTo(1.11, 1);
+    await bar(page).getByRole('button', { name: 'Previous chapter' }).click();
+    expect(await positionOf(page)).toBe(0);
+
+    await bar(page).getByRole('button', { name: 'Playback speed' }).click();
+    await expect(bar(page).getByRole('button', { name: 'Playback speed' })).toHaveText('1.25×');
+    await expect(live(page)).toContainText('speed 1.25');
+  });
+
+  test('shows an error with the position kept when audio cannot load, and recovers on retry', async ({
+    page,
+  }) => {
+    await open(page, '/dev/ui');
+    await page.route('**/dev/audio/*.mp3', (route) => route.abort());
+    await page.getByRole('button', { name: 'Play from 0:05' }).click();
+
+    await expect(bar(page).getByRole('alert')).toContainText("Couldn't load this chapter");
+    await expect(bar(page).getByRole('alert')).toContainText('0:05');
+
+    await page.unroute('**/dev/audio/*.mp3');
+    await bar(page).getByRole('button', { name: 'Try again' }).click();
+    await expect(live(page)).toContainText('status playing');
+    await waitForPosition(page, 5.3);
+  });
+
+  test('only one tab plays at a time', async ({ context }) => {
+    const first = await context.newPage();
+    await first.goto('/dev/ui');
+    await first.getByRole('button', { name: 'Play test book' }).click();
+    await expect(live(first)).toContainText('status playing');
+
+    const second = await context.newPage();
+    await second.goto('/dev/ui');
+    await second.getByRole('button', { name: 'Play from 0:05' }).click();
+    await expect(live(second)).toContainText('status playing');
+
+    await expect(live(first)).toContainText('status paused');
+  });
+
+  test('the home page lists the static books and a book page lists its chapters', async ({
+    page,
+  }) => {
+    await open(page, '/');
+    await expect(page.getByRole('article')).toHaveCount(4);
+
+    await page.getByRole('link', { name: 'Сіддхартха, Герман Гессе' }).click();
+    await expect(page).toHaveURL(/\/book\/hesse-siddhartha$/);
+    await expect(page.getByRole('heading', { level: 1, name: 'Сіддхартха' })).toBeVisible();
+    await expect(page.getByRole('listitem')).toHaveCount(12);
+    await expect(
+      page.getByRole('main').getByRole('button', { name: 'Play', exact: true }),
+    ).toBeVisible();
+  });
+});

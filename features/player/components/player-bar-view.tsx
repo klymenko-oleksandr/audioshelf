@@ -15,7 +15,6 @@ import {
   RiSkipBackFill,
   RiSkipForwardFill,
   RiTimerLine,
-  RiVolumeUpLine,
 } from '@remixicon/react';
 import { useTranslations } from 'next-intl';
 import type { ReactNode } from 'react';
@@ -23,6 +22,7 @@ import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
 import { BookCover } from '@/features/catalogue/components/book-cover';
 import { cn } from '@/lib/utils';
+import { Scrubber } from './scrubber';
 
 /** Mirrors the player state machine in the PRD (Phase 2 owns the real one). */
 export type PlayerViewState =
@@ -35,8 +35,12 @@ export interface PlayerBarViewProps {
   chapterLabel?: string;
   /** "The Man with the Twisted Lip" — the phone bar leads with the chapter. */
   chapterTitle?: string;
+  /** 0–100, book-scoped: the bar's scrubber and the thin progress line both show it. */
   bookProgressPct?: number;
-  chapterProgressPct?: number;
+  /** Read out by the scrubber, e.g. "27:14 of 5:38:11". */
+  positionText?: string;
+  /** Ongoing book played to the end of what is out: "You're up to date" instead of "Finished". */
+  upToDate?: boolean;
   /** All time strings arrive formatted: "27:14", "−25:26", "27:14 / 52:40", "25 min left". */
   elapsedLabel?: string;
   remainingLabel?: string;
@@ -49,6 +53,8 @@ export interface PlayerBarViewProps {
   onSkipForward?: () => void;
   onPreviousChapter?: () => void;
   onNextChapter?: () => void;
+  /** Book-scoped seek from the scrubber, 0–1. Without it the track is a picture. */
+  onSeek?: (fraction: number) => void;
   onRetry?: () => void;
   onPlayAgain?: () => void;
   onOpen?: () => void;
@@ -93,19 +99,12 @@ function IconButton({
  * bar, 1024 px and up the full bar. The desktop grid keeps the transport centred when there is room (equal side columns) and
  * lets the right-hand controls keep their width when there is not.
  *
- * Presentational: it renders what it is given and reports clicks. The progress track is a
- * picture here; Phase 2 turns it into a real slider together with the audio engine.
+ * Presentational: it renders what it is given and reports what the listener does. Controls
+ * whose handler is not passed are not rendered, so nothing on screen is a dead button.
  */
 export function PlayerBarView(props: PlayerBarViewProps) {
   const t = useTranslations('player');
-  const {
-    state,
-    book,
-    bookProgressPct = 0,
-    chapterProgressPct = 0,
-    speedLabel = '1×',
-    liked = false,
-  } = props;
+  const { state, book, bookProgressPct = 0, speedLabel = '1×', liked = false } = props;
 
   if (state === 'idle' || !book) {
     return (
@@ -136,6 +135,7 @@ export function PlayerBarView(props: PlayerBarViewProps) {
   const failed = state === 'error';
   const finished = state === 'finished';
   const position = props.elapsedLabel ?? '0:00';
+  const finishedLabel = props.upToDate ? t('upToDate') : t('finished');
 
   const mainLabel = busy ? t('loading') : state === 'playing' ? t('pause') : t('play');
   const mainIcon = (size: number) =>
@@ -199,13 +199,14 @@ export function PlayerBarView(props: PlayerBarViewProps) {
             <button
               type="button"
               onClick={props.onOpen}
+              disabled={!props.onOpen}
               aria-label={t('open')}
-              className="flex min-w-0 grow items-center gap-2.5 rounded-sm text-left"
+              className="flex min-w-0 grow items-center gap-2.5 rounded-sm text-left disabled:cursor-default"
             >
               {cover('size-10 rounded-sm')}
               <span className="flex min-w-0 flex-col">
                 <span className="truncate text-[13px] font-medium">
-                  {finished ? t('finished') : (props.chapterTitle ?? book.title)}
+                  {finished ? finishedLabel : (props.chapterTitle ?? book.title)}
                 </span>
                 <span className="text-muted-foreground truncate text-[11px]">
                   {[book.title, finished ? undefined : props.timeLeftLabel]
@@ -251,8 +252,9 @@ export function PlayerBarView(props: PlayerBarViewProps) {
         <button
           type="button"
           onClick={props.onOpen}
+          disabled={!props.onOpen}
           aria-label={t('open')}
-          className="flex min-w-0 grow items-center gap-2.5 rounded-md text-left"
+          className="flex min-w-0 grow items-center gap-2.5 rounded-md text-left disabled:cursor-default"
         >
           {cover('size-12 rounded-md')}
           <span className="flex min-w-0 flex-col">
@@ -260,7 +262,7 @@ export function PlayerBarView(props: PlayerBarViewProps) {
               {failed
                 ? t('errorTitle')
                 : finished
-                  ? t('finished')
+                  ? finishedLabel
                   : (props.chapterTitle ?? book.title)}
             </span>
             <span
@@ -311,14 +313,18 @@ export function PlayerBarView(props: PlayerBarViewProps) {
             >
               <RiForward30Line size={20} aria-hidden />
             </IconButton>
-            <Button variant="ghost" size="sm" aria-label={t('speed')} onClick={props.onSpeed}>
-              {speedLabel}
-            </Button>
+            {props.onSpeed ? (
+              <Button variant="ghost" size="sm" aria-label={t('speed')} onClick={props.onSpeed}>
+                {speedLabel}
+              </Button>
+            ) : null}
           </>
         )}
-        <IconButton label={t('open')} onClick={props.onOpen} className="size-11 rounded-full">
-          <RiArrowUpSLine size={20} aria-hidden />
-        </IconButton>
+        {props.onOpen ? (
+          <IconButton label={t('open')} onClick={props.onOpen} className="size-11 rounded-full">
+            <RiArrowUpSLine size={20} aria-hidden />
+          </IconButton>
+        ) : null}
       </div>
 
       {/* ── Desktop: full bar ──────────────────────────────────────────────────── */}
@@ -328,7 +334,8 @@ export function PlayerBarView(props: PlayerBarViewProps) {
         <button
           type="button"
           onClick={props.onOpen}
-          className="flex min-w-0 items-center gap-3 rounded-md text-left"
+          disabled={!props.onOpen}
+          className="flex min-w-0 items-center gap-3 rounded-md text-left disabled:cursor-default"
         >
           {cover('size-13 rounded-md')}
           <span className="flex min-w-0 flex-col gap-0.5">
@@ -353,7 +360,7 @@ export function PlayerBarView(props: PlayerBarViewProps) {
           </div>
         ) : finished ? (
           <div className="flex items-center justify-center gap-3">
-            <span className="font-medium">{t('finished')}</span>
+            <span className="font-medium">{finishedLabel}</span>
             <Button variant="outline" size="sm" onClick={props.onPlayAgain}>
               <RiRestartLine aria-hidden />
               {t('playAgain')}
@@ -385,47 +392,61 @@ export function PlayerBarView(props: PlayerBarViewProps) {
             </div>
             <div className="text-muted-foreground flex w-full max-w-140 items-center gap-2.5 text-[11px] tabular-nums">
               <span>{busy ? t('loading') : props.elapsedLabel}</span>
-              <span aria-hidden className="bg-muted relative h-1 grow rounded-full">
-                <span
-                  className="bg-foreground block h-full rounded-full"
-                  style={{ width: `${chapterProgressPct}%` }}
+              {props.onSeek ? (
+                <Scrubber
+                  value={bookProgressPct / 100}
+                  label={t('scrubber')}
+                  valueText={props.positionText ?? ''}
+                  onSeek={props.onSeek}
+                  className="grow"
                 />
-                <span
-                  className="bg-foreground absolute -top-1 -ml-1.5 size-3 rounded-full"
-                  style={{ left: `${chapterProgressPct}%` }}
-                />
-              </span>
+              ) : (
+                <span aria-hidden className="bg-muted h-1 grow rounded-full">
+                  <span
+                    className="bg-foreground block h-full rounded-full"
+                    style={{ width: `${bookProgressPct}%` }}
+                  />
+                </span>
+              )}
               <span>{props.remainingLabel}</span>
             </div>
           </div>
         )}
 
         <div className="flex items-center justify-end gap-1">
-          <Button variant="ghost" size="sm" aria-label={t('speed')} onClick={props.onSpeed}>
-            {speedLabel}
-          </Button>
-          <IconButton label={t('sleepTimer')} onClick={props.onSleepTimer}>
-            <RiTimerLine size={18} aria-hidden />
-          </IconButton>
-          <IconButton label={t('chapters')} onClick={props.onChapters}>
-            <RiPlayList2Line size={18} aria-hidden />
-          </IconButton>
-          <IconButton
-            label={t(liked ? 'unlike' : 'like')}
-            onClick={props.onToggleLike}
-            className={liked ? 'text-brand' : undefined}
-          >
-            {liked ? <RiHeartFill size={18} aria-hidden /> : <RiHeartLine size={18} aria-hidden />}
-          </IconButton>
-          <span aria-hidden className="text-muted-foreground mx-2 flex items-center gap-2">
-            <RiVolumeUpLine size={18} />
-            <span className="bg-muted h-1 w-18 rounded-full">
-              <span className="bg-muted-foreground block h-full w-[70%] rounded-full" />
-            </span>
-          </span>
-          <IconButton label={t('open')} onClick={props.onOpen}>
-            <RiArrowUpSLine size={20} aria-hidden />
-          </IconButton>
+          {props.onSpeed ? (
+            <Button variant="ghost" size="sm" aria-label={t('speed')} onClick={props.onSpeed}>
+              {speedLabel}
+            </Button>
+          ) : null}
+          {props.onSleepTimer ? (
+            <IconButton label={t('sleepTimer')} onClick={props.onSleepTimer}>
+              <RiTimerLine size={18} aria-hidden />
+            </IconButton>
+          ) : null}
+          {props.onChapters ? (
+            <IconButton label={t('chapters')} onClick={props.onChapters}>
+              <RiPlayList2Line size={18} aria-hidden />
+            </IconButton>
+          ) : null}
+          {props.onToggleLike ? (
+            <IconButton
+              label={t(liked ? 'unlike' : 'like')}
+              onClick={props.onToggleLike}
+              className={liked ? 'text-brand' : undefined}
+            >
+              {liked ? (
+                <RiHeartFill size={18} aria-hidden />
+              ) : (
+                <RiHeartLine size={18} aria-hidden />
+              )}
+            </IconButton>
+          ) : null}
+          {props.onOpen ? (
+            <IconButton label={t('open')} onClick={props.onOpen}>
+              <RiArrowUpSLine size={20} aria-hidden />
+            </IconButton>
+          ) : null}
         </div>
       </div>
     </div>
