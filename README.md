@@ -94,4 +94,12 @@ fallback, because Instrument Sans has no Cyrillic — and Geist Mono for everyth
 - **Errors** — `app/error.tsx` replaces only the page content; the shell and player stay.
 - **Splash** — `components/shell/splash.tsx`, static HTML and CSS shown until hydration.
   Append `?splash=hold` to any URL to keep it up and see the 3 s and 15 s messages.
+- **Bottom sheets** — `BottomSheet` + `SheetAction` from `@/components/ui/bottom-sheet`. They
+  close on tap outside, Esc and the browser Back button (`useCloseOnBack`). To navigate from
+  inside an open sheet use `router.replace()`, which swaps the sheet's history entry.
+- **Menus** — `@/components/ui/dropdown-menu`, restyled to the inverted translucent `--menu-*`
+  surface.
+- **Touch vs pointer** — the `touch:` variant targets devices without hover.
+- **BookCard** (`features/catalogue/components`) and **PlayerBarView**
+  (`features/player/components`) are presentational: data in, callbacks out.
 - **Showcase** — `/dev/ui` demonstrates all of the above (hidden in production).
