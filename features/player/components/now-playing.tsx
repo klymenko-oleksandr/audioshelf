@@ -2,6 +2,7 @@
 
 import {
   RiArrowDownSLine,
+  RiEqualizerLine,
   RiErrorWarningLine,
   RiForward30Line,
   RiPauseFill,
@@ -17,11 +18,30 @@ import {
 } from '@remixicon/react';
 import { useTranslations } from 'next-intl';
 import type { ReactNode } from 'react';
+import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from '@/components/ui/sheet';
 import { Spinner } from '@/components/ui/spinner';
 import { BookCover } from '@/features/catalogue/components/book-cover';
+import { cn } from '@/lib/utils';
 import { useDelayedLoading } from '@/hooks/use-delayed-loading';
-import { formatClock, formatRemaining, formatSpeed, isWaiting } from '../core';
+import {
+  formatClock,
+  formatRemaining,
+  formatSpeed,
+  isWaiting,
+  SLEEP_MINUTE_OPTIONS,
+  SPEED_PRESETS,
+} from '../core';
 import { getPlayer, usePlayerState } from '../player';
 import { closeNowPlaying, openSheet, useNowPlayingOpen } from '../ui/player-ui';
 import { PlayerSheets } from './player-sheets';
@@ -88,6 +108,7 @@ function Action({
  * column that grows a little on larger screens.
  *
  * Its scrubber is chapter-scoped (the bar's is book-scoped); the book position sits below.
+ * From 1024 px the speed presets and the sleep menu are inline instead of sheets.
  * Bookmarks, text and like join the actions row with their features.
  */
 export function NowPlaying() {
@@ -105,6 +126,13 @@ export function NowPlaying() {
   const start = chapter?.start ?? 0;
   const length = chapter ? chapter.end - chapter.start : 0;
   const elapsed = Math.min(length, Math.max(0, position - start));
+  const sleepTime = sleep ? formatClock(Math.ceil(sleep.remainingMs / 1000)) : undefined;
+  const sleepValue =
+    sleep === null
+      ? 'off'
+      : sleep.timer.kind === 'minutes'
+        ? String(sleep.timer.minutes)
+        : 'chapter';
   const finishedLabel = book?.ongoing ? t('upToDate') : t('finished');
 
   return (
@@ -249,7 +277,7 @@ export function NowPlaying() {
                 </Transport>
               </div>
 
-              <div className="flex w-full max-w-[380px] items-start justify-around">
+              <div className="flex w-full max-w-[380px] items-start justify-around lg:hidden">
                 <Action
                   icon={<RiSpeedUpLine size={22} />}
                   label={t('speedShort')}
@@ -269,6 +297,89 @@ export function NowPlaying() {
                   label={t('chapters')}
                   onClick={() => openSheet('chapters')}
                 />
+              </div>
+
+              {/* Desktop (canvas: NowPlaying): speed presets and the sleep menu are inline. */}
+              <div className="hidden w-full items-center justify-center gap-3 lg:flex">
+                <div
+                  role="group"
+                  aria-label={t('speed')}
+                  className="border-border flex items-center rounded-md border p-0.5"
+                >
+                  {SPEED_PRESETS.map((preset) => {
+                    const active = Math.abs(preset - speed) < 0.001;
+                    return (
+                      <button
+                        key={preset}
+                        type="button"
+                        aria-pressed={active}
+                        onClick={() => getPlayer().setSpeed(preset)}
+                        className={cn(
+                          'h-8 rounded-sm px-2.5 text-[13px] font-medium tabular-nums',
+                          active ? 'bg-primary text-primary-foreground' : 'hover:bg-accent',
+                        )}
+                      >
+                        {formatSpeed(preset)}
+                      </button>
+                    );
+                  })}
+                  <button
+                    type="button"
+                    aria-label={`${t('speed')}: ${formatSpeed(speed)}`}
+                    onClick={() => openSheet('speed')}
+                    className="hover:bg-accent grid size-8 place-items-center rounded-sm"
+                  >
+                    <RiEqualizerLine size={16} aria-hidden />
+                  </button>
+                </div>
+
+                <DropdownMenu>
+                  <DropdownMenuTrigger
+                    render={<Button variant="secondary" size="sm" />}
+                    aria-label={sleepTime ? t('sleepOn', { time: sleepTime }) : t('sleepTimer')}
+                    className={sleepTime ? 'text-brand tabular-nums' : undefined}
+                  >
+                    <RiTimerLine aria-hidden />
+                    {sleepTime ? t('sleepValue', { time: sleepTime }) : t('sleepShort')}
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="center" side="top" className="w-auto min-w-56">
+                    <DropdownMenuGroup>
+                      <DropdownMenuLabel>{t('sleepGroup')}</DropdownMenuLabel>
+                      <DropdownMenuRadioGroup
+                        value={sleepValue}
+                        onValueChange={(value: string) =>
+                          getPlayer().setSleepTimer(
+                            value === 'off'
+                              ? null
+                              : value === 'chapter'
+                                ? 'chapter'
+                                : Number(value),
+                          )
+                        }
+                      >
+                        {SLEEP_MINUTE_OPTIONS.map((minutes) => (
+                          <DropdownMenuRadioItem key={minutes} value={String(minutes)} closeOnClick>
+                            {t('sleepMinutes', { minutes })}
+                          </DropdownMenuRadioItem>
+                        ))}
+                        {chapter ? (
+                          <DropdownMenuRadioItem value="chapter" closeOnClick>
+                            {t('sleepEndOfChapter')}
+                          </DropdownMenuRadioItem>
+                        ) : null}
+                        <DropdownMenuSeparator />
+                        <DropdownMenuRadioItem value="off" closeOnClick>
+                          {t('sleepOff')}
+                        </DropdownMenuRadioItem>
+                      </DropdownMenuRadioGroup>
+                    </DropdownMenuGroup>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+
+                <Button variant="secondary" size="sm" onClick={() => openSheet('chapters')}>
+                  <RiPlayList2Line aria-hidden />
+                  {t('chapters')}
+                </Button>
               </div>
             </div>
 

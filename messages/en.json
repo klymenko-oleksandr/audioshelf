@@ -92,7 +92,8 @@
     "chapterCount": "{count, plural, one {# chapter} other {# chapters}}",
     "timeLeft": "{duration} left",
     "nowPlaying": "Now playing",
-    "closeSheet": "Close"
+    "closeSheet": "Close",
+    "sleepValue": "Sleep · {time}"
   },
   "pages": {
     "comingSoon": "This screen is on its way.",

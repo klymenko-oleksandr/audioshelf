@@ -92,7 +92,8 @@
     "chapterCount": "{count, plural, one {# розділ} few {# розділи} many {# розділів} other {# розділу}}",
     "timeLeft": "Залишилось {duration}",
     "nowPlaying": "Зараз грає",
-    "closeSheet": "Закрити"
+    "closeSheet": "Закрити",
+    "sleepValue": "Сон · {time}"
   },
   "pages": {
     "comingSoon": "Цей екран уже в роботі.",
