@@ -91,6 +91,52 @@ BEGIN
   JOIN v1_new n ON n.v1_id = c."bookId"
   WINDOW w AS (PARTITION BY c."bookId" ORDER BY c."order", c."createdAt");
 
+  -- v1 titles carried file-name noise ("01. БРАХМАНСЬКИЙ СИН "); these are the cleaned ones.
+  UPDATE chapters c SET title = v.title, updated_at = now()
+  FROM (VALUES
+    ('hesse-siddhartha', 1, 'Брахманський син'),
+    ('hesse-siddhartha', 2, 'У саман'),
+    ('hesse-siddhartha', 3, 'Гаутама'),
+    ('hesse-siddhartha', 4, 'Пробудження'),
+    ('hesse-siddhartha', 5, 'Камала'),
+    ('hesse-siddhartha', 6, 'Серед звичайних людей'),
+    ('hesse-siddhartha', 7, 'Сансара'),
+    ('hesse-siddhartha', 8, 'На річці'),
+    ('hesse-siddhartha', 9, 'Перевізник'),
+    ('hesse-siddhartha', 10, 'Син'),
+    ('hesse-siddhartha', 11, 'Ом'),
+    ('hesse-siddhartha', 12, 'Говінда'),
+    ('orwell-kolhosp-tvaryn', 1, 'Розділ 1'),
+    ('orwell-kolhosp-tvaryn', 2, 'Розділ 2'),
+    ('orwell-kolhosp-tvaryn', 3, 'Розділ 3'),
+    ('orwell-kolhosp-tvaryn', 4, 'Розділ 4'),
+    ('orwell-kolhosp-tvaryn', 5, 'Розділ 5'),
+    ('orwell-kolhosp-tvaryn', 6, 'Розділ 6'),
+    ('orwell-kolhosp-tvaryn', 7, 'Розділ 7'),
+    ('orwell-kolhosp-tvaryn', 8, 'Розділ 8'),
+    ('raspe-pryhody-barona-miunkhauzena', 1, 'Пригоди барона Мюнхаузена'),
+    ('tolkin-bratstvo-persnia', 1, 'Пролог. Про гобітів'),
+    ('tolkin-bratstvo-persnia', 2, 'Про люлькове зілля'),
+    ('tolkin-bratstvo-persnia', 3, 'Про устрій Ширу'),
+    ('tolkin-bratstvo-persnia', 4, 'Про віднайдення Персня'),
+    ('tolkin-bratstvo-persnia', 5, 'Зауваги щодо ширських літописів'),
+    ('tolkin-bratstvo-persnia', 6, 'Розділ 1. Довгоочікувана гостина'),
+    ('tolkin-bratstvo-persnia', 7, 'Розділ 2. Тінь минулого'),
+    ('tolkin-bratstvo-persnia', 8, 'Розділ 3. Троє — це вже загін'),
+    ('tolkin-bratstvo-persnia', 9, 'Розділ 4. Навпростець по гриби'),
+    ('tolkin-bratstvo-persnia', 10, 'Розділ 5. Змову викрито'),
+    ('tolkin-bratstvo-persnia', 11, 'Розділ 6. Праліс'),
+    ('tolkin-bratstvo-persnia', 12, 'Розділ 7. У домі Тома Бомбадила'),
+    ('tolkin-bratstvo-persnia', 13, 'Розділ 8. Туман понад Курганними Пагорбами'),
+    ('tolkin-bratstvo-persnia', 14, 'Розділ 9. Під вивіскою «Брикливий поні»'),
+    ('tolkin-bratstvo-persnia', 15, 'Розділ 10. Бурлака'),
+    ('tolkin-bratstvo-persnia', 16, 'Розділ 11. Ніж у темряві'),
+    ('tolkin-bratstvo-persnia', 17, 'Розділ 12. Втеча до Броду')
+  ) AS v(slug, position, title)
+  JOIN books b ON b.slug = v.slug
+  JOIN v1_new n ON n.book_id = b.id
+  WHERE c.book_id = b.id AND c.position = v.position AND c.title IS DISTINCT FROM v.title;
+
   RAISE NOTICE 'Seeded % book(s) from legacy_v1.', (SELECT count(*) FROM v1_new);
 END
 $seed$;

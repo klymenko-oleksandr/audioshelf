@@ -1,6 +1,7 @@
 import { defineConfig, devices } from '@playwright/test';
 
 const PORT = Number(process.env.PORT ?? 3000);
+const E2E_DB_PORT = 54329;
 const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? `http://localhost:${PORT}`;
 
 export default defineConfig({
@@ -19,10 +20,25 @@ export default defineConfig({
   // Skipped when PLAYWRIGHT_BASE_URL points at an already running deployment.
   webServer: process.env.PLAYWRIGHT_BASE_URL
     ? undefined
-    : {
-        command: `npm run build && npm run start -- -p ${PORT}`,
-        url: baseURL,
-        reuseExistingServer: !process.env.CI,
-        timeout: 180_000,
-      },
+    : [
+        {
+          // In-memory Postgres with the migrations and e2e/fixtures/catalogue.sql.
+          command: 'node scripts/e2e-db.mjs',
+          port: E2E_DB_PORT,
+          reuseExistingServer: !process.env.CI,
+          timeout: 60_000,
+          env: { E2E_DB_PORT: String(E2E_DB_PORT) },
+        },
+        {
+          command: `npm run build && npm run start -- -p ${PORT}`,
+          url: baseURL,
+          reuseExistingServer: !process.env.CI,
+          timeout: 180_000,
+          // These win over .env, so a local run never touches the real database or bucket.
+          env: {
+            DATABASE_URL: `postgres://postgres:postgres@127.0.0.1:${E2E_DB_PORT}/postgres`,
+            NEXT_PUBLIC_MEDIA_BASE_URL: `http://localhost:${PORT}/dev/audio`,
+          },
+        },
+      ],
 });

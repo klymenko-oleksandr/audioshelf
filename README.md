@@ -60,6 +60,11 @@ e2e/            Playwright tests
   `drizzle.config.ts` and `lib/db`). Every table has Row Level Security enabled with no
   policies, because Supabase exposes `public` through its Data API and only the server may
   read these tables.
+- **Tests with a database.** No Postgres is needed locally or in CI: unit tests use PGlite
+  (Postgres compiled to WebAssembly) in memory via `tests/test-db.ts`, and the end-to-end
+  tests start `scripts/e2e-db.mjs` (the same thing behind a TCP port, loaded with
+  `e2e/fixtures/catalogue.sql`). Both apply every migration, so a broken migration fails
+  the tests. A local `npm run e2e` never touches the real database or bucket.
 - **Seed.** `db/seed/v1-books.sql` copies the four v1 books from `legacy_v1` into the catalogue
   tables (run once in the Supabase SQL editor; safe to re-run).
 - **Storage**: object keys come from `lib/r2/keys.ts`:

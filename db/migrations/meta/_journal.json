@@ -15,6 +15,13 @@
       "when": 1794767734950,
       "tag": "0001_catalogue",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1794776732039,
+      "tag": "0002_lock_down_api_roles",
+      "breakpoints": true
     }
   ]
 }
