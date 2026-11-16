@@ -100,7 +100,12 @@
     "home": {
       "title": "Головна",
       "newReleases": "Новинки",
-      "empty": "Книг поки немає. Загляньте пізніше."
+      "empty": "Книг поки немає. Загляньте пізніше.",
+      "continueListening": "Продовжити слухати",
+      "seeAll": "Усі",
+      "explore": "Огляд",
+      "chapterOf": "Розд. {number} з {count}",
+      "pauseBook": "Пауза: {title}"
     },
     "explore": {
       "title": "Огляд"
@@ -159,11 +164,13 @@
     "removeDownload": "Видалити завантаження",
     "goToAuthor": "До автора",
     "share": "Поділитися",
-    "listened": "Прослухано {pct}% · {duration}"
+    "listened": "Прослухано {pct}% · {duration}",
+    "ongoing": "Триває"
   },
   "common": {
     "durationHm": "{hours} год {minutes} хв",
-    "durationM": "{minutes} хв"
+    "durationM": "{minutes} хв",
+    "loading": "Завантаження"
   },
   "book": {
     "chapters": "Розділи",
@@ -172,7 +179,30 @@
     "playAgain": "Слухати знову",
     "pause": "Пауза",
     "nowPlaying": "Зараз грає",
-    "comingSoon": "Це з'явиться разом із бібліотекою.",
-    "playFailed": "Не вдалося завантажити книгу. Перевірте з'єднання і спробуйте ще раз."
+    "comingSoon": "Це поки недоступно. З'явиться згодом.",
+    "playFailed": "Не вдалося завантажити книгу. Перевірте з'єднання і спробуйте ще раз.",
+    "resumeAt": "Продовжити · розд. {number}, {time}",
+    "readBy": "читає {name}",
+    "chapterCount": "{count, plural, one {# розділ} few {# розділи} many {# розділів} other {# розділу}}",
+    "progress": "{pct}% · залишилось {left}",
+    "finished": "Прослухано",
+    "upToDate": "Ви все прослухали",
+    "ongoing": "Триває · будуть нові частини",
+    "like": "Вподобати",
+    "listenLater": "Послухати пізніше",
+    "laterShort": "Пізніше",
+    "download": "Завантажити",
+    "offlineShort": "Офлайн",
+    "share": "Поділитися",
+    "sections": "Розділи сторінки",
+    "chaptersTab": "Розділи · {count}",
+    "about": "Про книгу",
+    "reviews": "Відгуки",
+    "noDescription": "Опису поки немає.",
+    "chapterFinished": "Прослухано",
+    "language": {
+      "uk": "Українська",
+      "en": "Англійська"
+    }
   }
 }

@@ -1,0 +1,48 @@
+'use client';
+
+import { useTranslations } from 'next-intl';
+import { toast } from '@/components/ui/toast';
+import { useDurationLabel } from '@/features/player/components/use-duration-label';
+import { useBookProgress } from '@/features/player/player';
+import { playBook } from '@/features/player/play-book';
+import type { BookSummary } from '../data/queries';
+import { BookCard } from './book-card';
+
+/** Short language tag for the card's meta line: Ukrainian reads "UA" (not the code "uk"). */
+export const languageTag = (language: string) =>
+  language === 'uk' ? 'UA' : language.toUpperCase();
+
+/** A catalogue book as a card, wired to the player and to this device's saved progress. */
+export function CatalogueCard({ book, className }: { book: BookSummary; className?: string }) {
+  const t = useTranslations('book');
+  const durationLabel = useDurationLabel();
+  const progress = useBookProgress(book.id);
+  // Likes and Listen later arrive in Phase 5, downloads in Phase 7.
+  const soon = () => toast({ title: t('comingSoon') });
+
+  return (
+    <BookCard
+      className={className}
+      book={{
+        slug: book.slug,
+        title: book.title,
+        author: book.author?.name ?? '',
+        authorSlug: book.author?.slug ?? '',
+        coverUrl: book.coverUrl,
+        durationLabel: durationLabel(book.durationSeconds),
+        language: languageTag(book.language),
+        ongoing: book.ongoing,
+      }}
+      progressPct={
+        progress && !progress.finished && book.durationSeconds > 0
+          ? (progress.position / book.durationSeconds) * 100
+          : 0
+      }
+      onPlay={() => void playBook(book.id, { failed: t('playFailed') })}
+      onToggleLike={soon}
+      onToggleListenLater={soon}
+      onToggleDownload={soon}
+      onShare={soon}
+    />
+  );
+}

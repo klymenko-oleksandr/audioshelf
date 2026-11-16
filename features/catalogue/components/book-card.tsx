@@ -40,6 +40,8 @@ export interface BookCardBook {
   durationLabel: string;
   /** Short language tag shown in the meta line, e.g. "UA". */
   language?: string;
+  /** Published before all parts are out: the cover carries an "Ongoing" label. */
+  ongoing?: boolean;
 }
 
 export type BookCardDownload =
@@ -159,7 +161,8 @@ export function BookCard({
         >
           <BookCover
             title={book.title}
-            author={book.author}
+            // The "Ongoing" label takes the corner where a generated cover prints the author.
+            author={book.ongoing ? undefined : book.author}
             src={book.coverUrl}
             seed={book.slug}
             reserveBottom={hasDownload}
@@ -173,6 +176,12 @@ export function BookCard({
             className="absolute inset-x-0 bottom-0 h-1 overflow-hidden rounded-b-lg bg-black/35"
           >
             <span className="bg-primary block h-full" style={{ width: `${progressPct}%` }} />
+          </span>
+        ) : null}
+
+        {book.ongoing ? (
+          <span className="bg-background text-foreground absolute top-2 left-2 rounded-full px-2 py-0.5 text-[11px] leading-4 font-medium shadow-sm">
+            {t('ongoing')}
           </span>
         ) : null}
 

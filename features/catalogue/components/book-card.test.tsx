@@ -62,6 +62,16 @@ describe('BookCard', () => {
     expect(screen.getByText('Downloaded to this device')).toBeInTheDocument();
   });
 
+  it('labels an ongoing book', () => {
+    renderCard({ book: { ...book, ongoing: true } });
+    expect(screen.getByText('Ongoing')).toBeInTheDocument();
+  });
+
+  it('has no ongoing label for a complete book', () => {
+    renderCard();
+    expect(screen.queryByText('Ongoing')).not.toBeInTheDocument();
+  });
+
   it('shows download progress while downloading', () => {
     renderCard({ download: { status: 'downloading', pct: 63.6 } });
     expect(screen.getByText('64%')).toBeInTheDocument();
