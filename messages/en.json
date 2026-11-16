@@ -127,6 +127,28 @@
       "title": "Search"
     }
   },
+  "catalogue": {
+    "categories": "Categories",
+    "all": "All",
+    "allBooks": "All books",
+    "bookCount": "{count, plural, one {# book} other {# books}}",
+    "emptyCategory": "No books here yet. Check back soon.",
+    "sort": {
+      "label": "Sort: {value}",
+      "heading": "Sort by",
+      "options": {
+        "newest": "Newest",
+        "length": "Shortest first",
+        "title": "Title (A–Z)"
+      }
+    },
+    "author": {
+      "kind": "Author",
+      "meta": "{books} · {duration} of listening",
+      "books": "Books · {count}",
+      "readBy": "Read by"
+    }
+  },
   "notFound": {
     "title": "This page isn't here",
     "body": "The book may have been removed, or the link is wrong. Your library and listening progress are safe.",

@@ -22,6 +22,7 @@ export async function TabBar() {
           <NavLink
             key={item.key}
             href={item.href}
+            also={item.also}
             className="group text-caption text-muted-foreground aria-[current=page]:text-foreground flex min-h-11 flex-1 flex-col items-center justify-center gap-0.5 focus-visible:shadow-none"
             icon={
               <span className={iconWrap}>

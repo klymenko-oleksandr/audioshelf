@@ -4,9 +4,13 @@ import * as schema from '@/db/schema';
 import { validateBook } from '@/features/player/core';
 import { createTestDb } from '@/tests/test-db';
 import {
+  getAuthorBySlug,
   getBookBySlug,
+  getCategoryBySlug,
   getPlayerBook,
+  listAllBooks,
   listBooksByIds,
+  listCategories,
   listCategoryRows,
   listNewReleases,
   MAX_BOOK_IDS,
@@ -146,6 +150,77 @@ describe('listCategoryRows', () => {
   it('caps the books per row', async () => {
     const rows = await listCategoryRows(t.db, 1);
     expect(rows.map((row) => row.books.map((book) => book.slug))).toEqual([['poem'], ['newer']]);
+  });
+});
+
+describe('listCategories', () => {
+  it('lists categories that have live books, in their order, with live counts', async () => {
+    expect(await listCategories(t.db)).toEqual([
+      { slug: 'poetry', nameUk: 'Поезія', nameEn: null, bookCount: 1 },
+      { slug: 'fiction', nameUk: 'Художня література', nameEn: 'Fiction', bookCount: 3 },
+    ]);
+  });
+});
+
+describe('listAllBooks', () => {
+  it('returns every live book, newest first', async () => {
+    const books = await listAllBooks(t.db);
+    expect(books.map((book) => book.slug)).toEqual(['newer', 'older', 'no-author', 'poem']);
+  });
+});
+
+describe('getCategoryBySlug', () => {
+  it('returns the category with its live books, newest first', async () => {
+    const category = await getCategoryBySlug(t.db, 'fiction');
+    expect(category).toMatchObject({
+      slug: 'fiction',
+      nameUk: 'Художня література',
+      nameEn: 'Fiction',
+    });
+    expect(category).not.toHaveProperty('id');
+    expect(category?.books.map((book) => book.slug)).toEqual(['newer', 'older', 'no-author']);
+    expect(category?.books[0]).toMatchObject({
+      author: { slug: 'herman-hesse', name: 'Герман Гессе' },
+      coverUrl: `${BASE}/books/newer/cover/abc-500.webp`,
+    });
+  });
+
+  it('keeps books of other categories and drafts out', async () => {
+    const poetry = await getCategoryBySlug(t.db, 'poetry');
+    expect(poetry?.books.map((book) => book.slug)).toEqual(['poem']);
+  });
+
+  it('returns a category without live books as an empty list, and null for an unknown slug', async () => {
+    expect(await getCategoryBySlug(t.db, 'empty')).toMatchObject({ slug: 'empty', books: [] });
+    expect(await getCategoryBySlug(t.db, 'missing')).toBeNull();
+    expect(await getCategoryBySlug(t.db, "'; drop table books; --")).toBeNull();
+  });
+});
+
+describe('getAuthorBySlug', () => {
+  it('returns the author with live books newest first, total length and narrators', async () => {
+    const author = await getAuthorBySlug(t.db, 'herman-hesse');
+    expect(author).toMatchObject({
+      slug: 'herman-hesse',
+      name: 'Герман Гессе',
+      bio: null,
+      durationSeconds: 5400,
+      narrators: [{ slug: 'reader', name: 'Читець', bookCount: 1 }],
+    });
+    expect(author).not.toHaveProperty('id');
+    // Across categories; the draft, scheduled and deleted books stay out.
+    expect(author?.books.map((book) => book.slug)).toEqual(['newer', 'older', 'poem']);
+  });
+
+  it('returns null for an unknown author and for one with no live books', async () => {
+    const [ghost] = await t.db
+      .insert(schema.authors)
+      .values({ slug: 'ghost', name: 'Автор Чернеток', bio: 'Ще нічого не видано.' })
+      .returning();
+    await addBook('ghost-draft', { authorId: ghost!.id, status: 'draft', publishedAt: null });
+
+    expect(await getAuthorBySlug(t.db, 'ghost')).toBeNull();
+    expect(await getAuthorBySlug(t.db, 'missing')).toBeNull();
   });
 });
 

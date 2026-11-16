@@ -46,6 +46,7 @@ export async function Rail() {
           <NavLink
             key={item.key}
             href={item.href}
+            also={item.also}
             className={itemClass}
             icon={<Icon size={20} aria-hidden />}
             activeIcon={<ActiveIcon size={20} aria-hidden className="text-brand" />}

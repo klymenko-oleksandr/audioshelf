@@ -16,4 +16,12 @@ describe('isActivePath', () => {
     expect(isActivePath('/library-old', '/library')).toBe(false);
     expect(isActivePath('/explore', '/library')).toBe(false);
   });
+
+  it('counts the extra sections of a nav item as that item', () => {
+    const also = ['/category', '/author'];
+    expect(isActivePath('/category/fiction', '/explore', also)).toBe(true);
+    expect(isActivePath('/author/lesia-ukrainka', '/explore', also)).toBe(true);
+    expect(isActivePath('/book/kobzar', '/explore', also)).toBe(false);
+    expect(isActivePath('/categories', '/explore', also)).toBe(false);
+  });
 });

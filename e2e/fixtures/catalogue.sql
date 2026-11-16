@@ -2,10 +2,15 @@
 -- public/dev/audio (NEXT_PUBLIC_MEDIA_BASE_URL points there during the tests).
 
 INSERT INTO categories (id, slug, name_uk, name_en, position) VALUES
-  ('10000000-0000-4000-8000-000000000001', 'fiction', 'Художня література', 'Fiction', 1);
+  ('10000000-0000-4000-8000-000000000001', 'fiction', 'Художня література', 'Fiction', 1),
+  -- No books: never offered as a chip, a tile or a Home row; its own page says it is empty.
+  ('10000000-0000-4000-8000-000000000002', 'poetry', 'Поезія', 'Poetry', 0);
 
-INSERT INTO authors (id, slug, name) VALUES
-  ('20000000-0000-4000-8000-000000000001', 'lesia-testova', 'Леся Тестова');
+-- "Автор Чернеток" has nothing published, so listeners never see an author page for them.
+INSERT INTO authors (id, slug, name, bio) VALUES
+  ('20000000-0000-4000-8000-000000000001', 'lesia-testova', 'Леся Тестова',
+   'Вигадана авторка для перевірки сторінки автора.'),
+  ('20000000-0000-4000-8000-000000000002', 'avtor-chernetok', 'Автор Чернеток', NULL);
 
 INSERT INTO narrators (id, slug, name) VALUES
   ('40000000-0000-4000-8000-000000000001', 'ostap-chytets', 'Остап Читець');

@@ -18,6 +18,8 @@ export type NavKey = 'home' | 'explore' | 'library' | 'downloads' | 'stats' | 'y
 export interface NavItem {
   key: NavKey;
   href: string;
+  /** Other sections that light this item up (see `isActivePath`). */
+  also?: readonly string[];
   icon: RemixiconComponentType;
   /** Fill variant marks the active state only (design system rule). */
   activeIcon: RemixiconComponentType;
@@ -29,6 +31,8 @@ const home: NavItem = { key: 'home', href: '/', icon: RiHome5Line, activeIcon: R
 const explore: NavItem = {
   key: 'explore',
   href: '/explore',
+  // Category and author pages are reached from Explore (canvas: Category, Author).
+  also: ['/category', '/author'],
   icon: RiCompass3Line,
   activeIcon: RiCompass3Fill,
 };

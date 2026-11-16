@@ -860,6 +860,198 @@ test.describe('catalogue', () => {
     }
   });
 
+  const cardsIn = (page: Page) => page.getByRole('main').getByRole('article');
+
+  test('home: category chips under the title lead to Explore and to each category', async ({
+    page,
+  }) => {
+    await open(page, '/');
+    const chips = page.getByRole('main').getByRole('navigation', { name: 'Categories' });
+    // "All" is the filled chip, but Home is not Explore, so it is not marked as the current page.
+    await expect(chips.getByRole('link', { name: 'All' })).toHaveAttribute('href', '/explore');
+    await expect(chips.getByRole('link', { name: 'All' })).not.toHaveAttribute('aria-current');
+    // A category without live books gets no chip.
+    await expect(chips.getByRole('link')).toHaveCount(2);
+    await chips.getByRole('link', { name: 'Fiction' }).click();
+    await expect(page).toHaveURL(/\/category\/fiction$/);
+    await expect(page.getByRole('heading', { level: 1, name: 'Fiction' })).toBeVisible();
+  });
+
+  test('explore: every live book with a count, chips for categories, sort kept in the URL', async ({
+    page,
+  }) => {
+    await open(page, '/explore');
+    const main = page.getByRole('main');
+    await expect(main.getByRole('heading', { level: 1, name: 'Explore' })).toBeVisible();
+    const chips = main.getByRole('navigation', { name: 'Categories' });
+    await expect(chips.getByRole('link', { name: 'All' })).toHaveAttribute('aria-current', 'page');
+    await expect(chips.getByRole('link', { name: 'Fiction' })).toHaveAttribute(
+      'href',
+      '/category/fiction',
+    );
+    await expect(chips.getByRole('link', { name: 'Poetry' })).toHaveCount(0);
+
+    await expect(
+      main.getByRole('region', { name: 'All books' }).getByText('2 books', { exact: true }),
+    ).toBeVisible();
+    await expect(cardsIn(page)).toContainText(['Три тони', 'Старша книга']);
+    await expect(main.getByText('Чернетка')).toHaveCount(0);
+
+    // Newest is the default; "Shortest first" reorders the list and lands in the URL.
+    await main.getByRole('button', { name: 'Sort: Newest' }).click();
+    await page.getByRole('menuitemradio', { name: 'Shortest first' }).click();
+    await expect(page).toHaveURL(/\/explore\?sort=length$/);
+    await expect(cardsIn(page)).toContainText(['Старша книга', 'Три тони']);
+    await expect(main.getByRole('button', { name: 'Sort: Shortest first' })).toBeVisible();
+
+    // Back to the default leaves a clean URL, and sorting added no history entries.
+    await main.getByRole('button', { name: 'Sort: Shortest first' }).click();
+    await page.getByRole('menuitemradio', { name: 'Newest' }).click();
+    await expect(page).toHaveURL(/\/explore$/);
+    await expect(cardsIn(page)).toContainText(['Три тони', 'Старша книга']);
+  });
+
+  test('explore on a phone: category tiles with counts instead of chips', async ({ page }) => {
+    await open(page, '/explore', PHONE);
+    const main = page.getByRole('main');
+    await expect(main.getByRole('navigation', { name: 'Categories' })).toBeHidden();
+    const tiles = main.getByRole('region', { name: 'Categories' });
+    await expect(tiles.getByRole('link')).toHaveCount(1);
+    await expect(tiles.getByRole('link', { name: 'Fiction 2 books' })).toHaveAttribute(
+      'href',
+      '/category/fiction',
+    );
+    await expect(main.getByRole('heading', { level: 2, name: 'All books' })).toBeVisible();
+    await expect(cardsIn(page)).toHaveCount(2);
+  });
+
+  test('category page: its books, the sort from the URL, the name in the interface language', async ({
+    page,
+    browser,
+  }) => {
+    await open(page, '/category/fiction?sort=title');
+    await expect(page).toHaveTitle(/Fiction/);
+    const main = page.getByRole('main');
+    await expect(main.getByRole('heading', { level: 1, name: 'Fiction' })).toBeVisible();
+    await expect(
+      main.getByRole('navigation', { name: 'Categories' }).getByRole('link', { name: 'Fiction' }),
+    ).toHaveAttribute('aria-current', 'page');
+    await expect(main.getByText('2 books', { exact: true })).toBeVisible();
+    await expect(cardsIn(page)).toContainText(['Старша книга', 'Три тони']);
+    await expect(main.getByRole('button', { name: 'Sort: Title (A–Z)' })).toBeVisible();
+    await expect(main.getByText('Чернетка')).toHaveCount(0);
+    // Category pages belong to Explore in the navigation.
+    await expect(
+      page.getByRole('complementary').getByRole('link', { name: 'Explore', exact: true }),
+    ).toHaveAttribute('aria-current', 'page');
+
+    // An unknown sort falls back to newest.
+    await page.goto('/category/fiction?sort=popular');
+    await expect(cardsIn(page)).toContainText(['Три тони', 'Старша книга']);
+
+    const context = await browser.newContext({ viewport: DESKTOP, locale: 'uk-UA' });
+    const ukPage = await context.newPage();
+    await ukPage.goto('/category/fiction');
+    await expect(
+      ukPage.getByRole('heading', { level: 1, name: 'Художня література' }),
+    ).toBeVisible();
+    await expect(ukPage.getByRole('main').getByText('2 книги', { exact: true })).toBeVisible();
+    await context.close();
+  });
+
+  test('a category without books says so; an unknown category is NotFound', async ({ page }) => {
+    await open(page, '/category/poetry');
+    const main = page.getByRole('main');
+    await expect(main.getByRole('heading', { level: 1, name: 'Poetry' })).toBeVisible();
+    await expect(main.getByText('No books here yet. Check back soon.')).toBeVisible();
+    await expect(main.getByRole('article')).toHaveCount(0);
+    await expect(main.getByRole('button', { name: /^Sort/ })).toHaveCount(0);
+
+    const response = await page.goto('/category/no-such-category');
+    expect(response?.status()).toBe(404);
+    await expect(page.getByRole('link', { name: 'Go home' })).toBeVisible();
+  });
+
+  test('author page: bio, live books, who reads them; authors without live books are NotFound', async ({
+    page,
+  }) => {
+    await open(page, '/author/lesia-testova');
+    await expect(page).toHaveTitle(/Леся Тестова/);
+    const main = page.getByRole('main');
+    await expect(main.getByRole('heading', { level: 1, name: 'Леся Тестова' })).toBeVisible();
+    await expect(main.getByText('Author', { exact: true })).toBeVisible();
+    await expect(main.getByText('2 books · 0 m of listening')).toBeVisible();
+    await expect(main.getByText('Вигадана авторка для перевірки сторінки автора.')).toBeVisible();
+
+    const books = main.getByRole('region', { name: 'Books · 2' });
+    await expect(books.getByRole('article')).toContainText(['Три тони', 'Старша книга']);
+    await expect(main.getByText('Чернетка')).toHaveCount(0);
+    await books.getByRole('button', { name: 'Sort: Newest' }).click();
+    await page.getByRole('menuitemradio', { name: 'Shortest first' }).click();
+    await expect(page).toHaveURL(/\/author\/lesia-testova\?sort=length$/);
+    await expect(books.getByRole('article')).toContainText(['Старша книга', 'Три тони']);
+
+    const readers = main.getByRole('region', { name: 'Read by' });
+    await expect(readers.getByRole('listitem')).toHaveCount(1);
+    await expect(readers.getByRole('listitem')).toContainText('Остап Читець');
+    await expect(readers.getByRole('listitem')).toContainText('1 book');
+
+    for (const slug of ['avtor-chernetok', 'no-such-author']) {
+      const response = await page.goto(`/author/${slug}`);
+      expect(response?.status()).toBe(404);
+      await expect(page.getByRole('link', { name: 'Go home' })).toBeVisible();
+    }
+  });
+
+  test('links from Home and the book page land on the category and author pages', async ({
+    page,
+  }) => {
+    await open(page, '/');
+    await row(page, 'Fiction').getByRole('link', { name: 'See all: Fiction' }).click();
+    await expect(page).toHaveURL(/\/category\/fiction$/);
+    await expect(page.getByRole('heading', { level: 1, name: 'Fiction' })).toBeVisible();
+
+    await page.goto('/');
+    await row(page, 'New releases').getByRole('link', { name: 'Explore: New releases' }).click();
+    await expect(page).toHaveURL(/\/explore$/);
+    await expect(page.getByRole('heading', { level: 1, name: 'Explore' })).toBeVisible();
+
+    await page.goto('/book/try-tony');
+    const main = page.getByRole('main');
+    await main.getByRole('link', { name: 'Fiction' }).click();
+    await expect(page).toHaveURL(/\/category\/fiction$/);
+    await expect(page.getByRole('heading', { level: 1, name: 'Fiction' })).toBeVisible();
+
+    await page.goto('/book/try-tony');
+    await main.getByRole('link', { name: 'Леся Тестова' }).click();
+    await expect(page).toHaveURL(/\/author\/lesia-testova$/);
+    await expect(page.getByRole('heading', { level: 1, name: 'Леся Тестова' })).toBeVisible();
+
+    // From a card on the author page back to a book, to close the loop.
+    await main.getByRole('link', { name: 'Старша книга, Леся Тестова' }).click();
+    await expect(page).toHaveURL(/\/book\/starsha-knyha$/);
+  });
+
+  test('explore, category and author pages do not overflow sideways at any width', async ({
+    page,
+  }) => {
+    for (const path of [
+      '/explore',
+      '/category/fiction',
+      '/category/poetry',
+      '/author/lesia-testova',
+    ]) {
+      for (const size of [PHONE, TABLET, { width: 1024, height: 768 }, DESKTOP]) {
+        await open(page, path, size);
+        await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+        const overflow = await page.evaluate(
+          () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+        );
+        expect(overflow, `horizontal overflow on ${path} at ${size.width}px`).toBe(0);
+      }
+    }
+  });
+
   test('Play on the book page loads the tracks and plays; a chapter starts from its beginning', async ({
     page,
   }) => {
