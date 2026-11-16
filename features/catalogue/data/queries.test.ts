@@ -3,7 +3,14 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import * as schema from '@/db/schema';
 import { validateBook } from '@/features/player/core';
 import { createTestDb } from '@/tests/test-db';
-import { getBookBySlug, getPlayerBook, listNewReleases } from './queries';
+import {
+  getBookBySlug,
+  getPlayerBook,
+  listBooksByIds,
+  listCategoryRows,
+  listNewReleases,
+  MAX_BOOK_IDS,
+} from './queries';
 
 type TestDb = Awaited<ReturnType<typeof createTestDb>>;
 let t: TestDb;
@@ -69,8 +76,15 @@ beforeAll(async () => {
     .insert(schema.categories)
     .values({ slug: 'fiction', nameUk: 'Художня література', nameEn: 'Fiction' })
     .returning();
+  // Sorted before "fiction" by position; "empty" has no live books at all.
+  const [poetry] = await t.db
+    .insert(schema.categories)
+    .values({ slug: 'poetry', nameUk: 'Поезія', position: -1 })
+    .returning();
+  await t.db.insert(schema.categories).values({ slug: 'empty', nameUk: 'Порожня', position: -2 });
   ids.author = author!.id;
   ids.category = category!.id;
+  ids.poetry = poetry!.id;
 
   await addBook('older', { publishedAt: new Date('2026-01-01T00:00:00Z') });
   await addBook('newer', {
@@ -85,6 +99,8 @@ beforeAll(async () => {
   await addBook('scheduled', { status: 'scheduled', publishedAt: null });
   await addBook('deleted', { deletedAt: new Date() });
   await addBook('no-author', { authorId: null, publishedAt: new Date('2025-01-01T00:00:00Z') });
+  await addBook('poem', { categoryId: ids.poetry, publishedAt: new Date('2024-01-01T00:00:00Z') });
+  await addBook('poem-draft', { categoryId: ids.poetry, status: 'draft', publishedAt: null });
 }, 60_000);
 
 afterAll(() => t.close());
@@ -92,7 +108,7 @@ afterAll(() => t.close());
 describe('listNewReleases', () => {
   it('returns live books only, newest first', async () => {
     const books = await listNewReleases(t.db);
-    expect(books.map((book) => book.slug)).toEqual(['newer', 'older', 'no-author']);
+    expect(books.map((book) => book.slug)).toEqual(['newer', 'older', 'no-author', 'poem']);
   });
 
   it('gives a card everything it shows, and no tracks', async () => {
@@ -113,6 +129,57 @@ describe('listNewReleases', () => {
     const book = (await listNewReleases(t.db)).find((item) => item.slug === 'no-author');
     expect(book?.author).toBeNull();
     expect(book?.coverUrl).toBeUndefined();
+  });
+});
+
+describe('listCategoryRows', () => {
+  it('lists categories in their order with live books newest first, skipping empty ones', async () => {
+    const rows = await listCategoryRows(t.db);
+    expect(rows.map((row) => [row.slug, row.books.map((book) => book.slug)])).toEqual([
+      ['poetry', ['poem']],
+      ['fiction', ['newer', 'older', 'no-author']],
+    ]);
+    expect(rows[0]).toMatchObject({ nameUk: 'Поезія', nameEn: null });
+    expect(rows[1]).toMatchObject({ nameUk: 'Художня література', nameEn: 'Fiction' });
+  });
+
+  it('caps the books per row', async () => {
+    const rows = await listCategoryRows(t.db, 1);
+    expect(rows.map((row) => row.books.map((book) => book.slug))).toEqual([['poem'], ['newer']]);
+  });
+});
+
+describe('listBooksByIds', () => {
+  it('returns card data with chapter starts for live books only', async () => {
+    const books = await listBooksByIds(t.db, [
+      ids.older!,
+      ids.newer!,
+      ids.draft!,
+      ids.deleted!,
+      '00000000-0000-4000-8000-000000000000',
+      'not-a-uuid',
+      "'; drop table books; --",
+    ]);
+    expect(books.map((book) => book.slug).sort()).toEqual(['newer', 'older']);
+    const newer = books.find((book) => book.slug === 'newer');
+    expect(newer).toMatchObject({
+      id: ids.newer,
+      title: 'Book newer',
+      author: { slug: 'herman-hesse', name: 'Герман Гессе' },
+      durationSeconds: 1800,
+      ongoing: true,
+      chapterStarts: [0, 600],
+    });
+  });
+
+  it('answers nothing for no usable ids and ignores ids past the limit', async () => {
+    expect(await listBooksByIds(t.db, [])).toEqual([]);
+    expect(await listBooksByIds(t.db, ['junk'])).toEqual([]);
+    const padding = Array.from(
+      { length: MAX_BOOK_IDS },
+      (_, index) => `00000000-0000-4000-8000-${String(index).padStart(12, '0')}`,
+    );
+    expect(await listBooksByIds(t.db, [...padding, ids.newer!])).toEqual([]);
   });
 });
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { useSyncExternalStore } from 'react';
+import { useMemo, useSyncExternalStore } from 'react';
 import { loadPlayerBook } from './data/load-book';
 import { AudioEngine, IDLE_STATE, type PlayerState } from './engine/audio-engine';
 import { attachMediaSession } from './engine/media-session';
@@ -70,4 +70,18 @@ export function useBookProgress(bookId: string): ProgressRecord | undefined {
     () => -1,
   );
   return version < 0 ? undefined : getPlayer().getProgress(bookId);
+}
+
+/**
+ * Saved progress for every book on this device, or `undefined` until it has been read
+ * (on the server, during hydration and for the first moments after).
+ */
+export function useAllProgress(): ProgressRecord[] | undefined {
+  const version = useSyncExternalStore(
+    subscribe,
+    () => getPlayer().getProgressVersion(),
+    () => -1,
+  );
+  // Version 0 is the engine before it has loaded the store.
+  return useMemo(() => (version < 1 ? undefined : getPlayer().getAllProgress()), [version]);
 }

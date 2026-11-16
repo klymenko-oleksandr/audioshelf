@@ -658,29 +658,205 @@ test.describe('catalogue', () => {
   test.use({ locale: 'en-US' });
   const player = (page: Page) => page.getByRole('region', { name: 'Player' });
 
-  test('home lists published books, newest first, and never a draft', async ({ page }) => {
+  const row = (page: Page, name: string) => page.getByRole('region', { name, exact: true });
+
+  test('home: New releases newest first, a row per category, never a draft, no Continue row for a new visitor', async ({
+    page,
+  }) => {
     await open(page, '/');
-    await expect(page.getByRole('heading', { level: 2, name: 'New releases' })).toBeVisible();
-    await expect(page.getByRole('article')).toHaveCount(2);
-    await expect(page.getByRole('article').first()).toContainText('Три тони');
+    const fresh = row(page, 'New releases');
+    await expect(fresh.getByRole('heading', { level: 2, name: 'New releases' })).toBeVisible();
+    await expect(fresh.getByRole('article')).toHaveCount(2);
+    await expect(fresh.getByRole('article').first()).toContainText('Три тони');
+    await expect(fresh.getByRole('link', { name: 'Explore: New releases' })).toHaveAttribute(
+      'href',
+      '/explore',
+    );
+
+    const fiction = row(page, 'Fiction');
+    await expect(fiction.getByRole('article')).toHaveCount(2);
+    await expect(fiction.getByRole('link', { name: 'See all: Fiction' })).toHaveAttribute(
+      'href',
+      '/category/fiction',
+    );
+    // The ongoing book says so on its card.
+    await expect(
+      fresh.getByRole('article').filter({ hasText: 'Старша книга' }).getByText('Ongoing'),
+    ).toBeVisible();
+
     await expect(page.getByText('Чернетка')).toHaveCount(0);
+    await expect(row(page, 'Continue listening')).toHaveCount(0);
+    await expect(page.getByRole('main')).not.toHaveAttribute('aria-busy');
+  });
+
+  test('home rows are named in the interface language', async ({ browser }) => {
+    const context = await browser.newContext({ viewport: DESKTOP, locale: 'uk-UA' });
+    const page = await context.newPage();
+    await page.goto('/');
+    await expect(row(page, 'Новинки').getByRole('article')).toHaveCount(2);
+    await expect(row(page, 'Художня література').getByRole('article')).toHaveCount(2);
+    await context.close();
   });
 
   test('a book page shows the book from the database; drafts and unknown books are NotFound', async ({
     page,
   }) => {
     await open(page, '/');
-    await page.getByRole('link', { name: 'Три тони, Леся Тестова' }).click();
+    await row(page, 'New releases').getByRole('link', { name: 'Три тони, Леся Тестова' }).click();
     await expect(page).toHaveURL(/\/book\/try-tony$/);
     await expect(page).toHaveTitle(/Три тони/);
-    await expect(page.getByRole('heading', { level: 1, name: 'Три тони' })).toBeVisible();
-    await expect(page.getByText('Коротка книга з трьох тонів')).toBeVisible();
-    await expect(page.getByRole('main').getByRole('listitem')).toHaveCount(3);
+    const main = page.getByRole('main');
+    await expect(main.getByRole('heading', { level: 1, name: 'Три тони' })).toBeVisible();
+    await expect(main.getByRole('link', { name: 'Леся Тестова' })).toHaveAttribute(
+      'href',
+      '/author/lesia-testova',
+    );
+    await expect(main.getByText('read by Остап Читець · 0 m · 3 chapters')).toBeVisible();
+    await expect(main.getByRole('link', { name: 'Fiction' })).toHaveAttribute(
+      'href',
+      '/category/fiction',
+    );
+    await expect(main.getByText('Ukrainian', { exact: true })).toBeVisible();
+    // Desktop: About sits beside the chapters, so both are on screen and there is no About tab.
+    await expect(
+      main.getByText('Коротка книга з трьох тонів').filter({ visible: true }),
+    ).toHaveCount(1);
+    await expect(main.getByRole('listitem')).toHaveCount(3);
+    await expect(main.getByRole('tab', { name: 'About' })).toBeHidden();
+    await expect(main.getByRole('tab', { name: 'Chapters · 3' })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    );
+    // A new visitor has no progress: plain Play, every chapter numbered.
+    await expect(main.getByRole('button', { name: 'Play', exact: true })).toBeVisible();
 
     for (const slug of ['chernetka', 'no-such-book']) {
       const response = await page.goto(`/book/${slug}`);
       expect(response?.status()).toBe(404);
       await expect(page.getByRole('link', { name: 'Go home' })).toBeVisible();
+    }
+  });
+
+  test('book page on a phone: About is a tab kept in the URL; Reviews is marked Soon', async ({
+    page,
+  }) => {
+    await open(page, '/book/try-tony?tab=about', PHONE);
+    const main = page.getByRole('main');
+    const about = main.getByRole('tab', { name: 'About' });
+    const chapters = main.getByRole('tab', { name: 'Chapters · 3' });
+    await expect(about).toHaveAttribute('aria-selected', 'true');
+    await expect(
+      main.getByText('Коротка книга з трьох тонів').filter({ visible: true }),
+    ).toHaveCount(1);
+    await expect(main.getByRole('listitem').first()).toBeHidden();
+
+    await chapters.click();
+    await expect(main.getByRole('listitem')).toHaveCount(3);
+    await expect(
+      main.getByText('Коротка книга з трьох тонів').filter({ visible: true }),
+    ).toHaveCount(0);
+    expect(new URL(page.url()).search).toBe('');
+
+    await about.click();
+    expect(new URL(page.url()).searchParams.get('tab')).toBe('about');
+    await page.reload();
+    await expect(about).toHaveAttribute('aria-selected', 'true');
+
+    await expect(main.getByRole('tab', { name: /Reviews/ })).toBeDisabled();
+    await expect(main.getByRole('tab', { name: /Reviews/ })).toContainText('Soon');
+
+    // Features that are not built yet say so instead of doing nothing.
+    await main.getByRole('button', { name: 'Later' }).click();
+    await expect(page.getByRole('status').getByText("This isn't available yet")).toBeVisible();
+  });
+
+  test('an ongoing book is labelled, and a book without a description says so', async ({
+    page,
+  }) => {
+    await open(page, '/book/starsha-knyha');
+    const main = page.getByRole('main');
+    await expect(main.getByText('Ongoing · more parts coming')).toBeVisible();
+    await expect(main.getByText('No description yet.').filter({ visible: true })).toHaveCount(1);
+  });
+
+  test('progress: the book page offers Resume at the chapter, Home gets a Continue listening row', async ({
+    page,
+  }) => {
+    await open(page, '/book/try-tony');
+    const main = page.getByRole('main');
+    await main.getByRole('button', { name: /Другий тон/ }).click();
+    await expect(player(page).getByRole('button', { name: 'Pause' })).toBeVisible();
+    await page.waitForTimeout(1200);
+    await main.getByRole('button', { name: 'Pause' }).click();
+
+    // Chapters before the current one are finished; the button names where Resume goes.
+    await expect(main.getByRole('button', { name: /Resume · Ch\. 2, 0:0\d/ })).toBeVisible();
+    await expect(main.getByRole('button', { name: /Перший тон/ })).toContainText('Finished');
+    await expect(main.getByRole('button', { name: /Другий тон/ })).toHaveAttribute(
+      'aria-current',
+      'true',
+    );
+    await expect(main.getByText(/^\d+% · .+ left$/)).toBeVisible();
+
+    await page.goto('/');
+    const cont = row(page, 'Continue listening');
+    const card = cont.getByRole('article');
+    await expect(card).toHaveCount(1);
+    await expect(card).toContainText('Три тони');
+    await expect(card).toContainText('Ch. 2 of 3');
+    await expect(cont.getByRole('link', { name: 'See all: Continue listening' })).toHaveAttribute(
+      'href',
+      '/library',
+    );
+    // The row sits above New releases.
+    const contBox = await cont.boundingBox();
+    const freshBox = await row(page, 'New releases').boundingBox();
+    expect(contBox && freshBox && contBox.y < freshBox.y).toBe(true);
+
+    await card.getByRole('button', { name: 'Resume Три тони' }).click();
+    await expect(card.getByRole('button', { name: 'Pause Три тони' })).toBeVisible();
+    await expect(
+      player(page)
+        .getByText(/Другий тон/)
+        .filter({ visible: true })
+        .first(),
+    ).toBeVisible();
+    await card.getByRole('button', { name: 'Pause Три тони' }).click();
+
+    // The card itself opens the book.
+    await card.getByRole('link', { name: 'Три тони' }).click();
+    await expect(page).toHaveURL(/\/book\/try-tony$/);
+  });
+
+  test('a finished book leaves Continue listening and its page offers Play again', async ({
+    page,
+  }) => {
+    await open(page, '/book/starsha-knyha');
+    await page.goto('/book/try-tony');
+    const main = page.getByRole('main');
+    await main.getByRole('button', { name: /Третій тон/ }).click();
+    await player(page).getByRole('slider', { name: 'Position in book' }).focus();
+    await page.keyboard.press('End');
+    await expect(main.getByRole('button', { name: 'Play again' })).toBeVisible({
+      timeout: 15_000,
+    });
+    await expect(main.getByText('Finished', { exact: true }).first()).toBeVisible();
+
+    await page.goto('/');
+    await expect(row(page, 'New releases')).toBeVisible();
+    await expect(row(page, 'Continue listening')).toHaveCount(0);
+  });
+
+  test('home and the book page do not overflow sideways at any width', async ({ page }) => {
+    for (const path of ['/', '/book/try-tony', '/book/try-tony?tab=about']) {
+      for (const size of [PHONE, TABLET, { width: 1024, height: 768 }, DESKTOP]) {
+        await open(page, path, size);
+        await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+        const overflow = await page.evaluate(
+          () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+        );
+        expect(overflow, `horizontal overflow on ${path} at ${size.width}px`).toBe(0);
+      }
     }
   });
 
@@ -709,7 +885,7 @@ test.describe('catalogue', () => {
     page,
   }) => {
     await open(page, '/');
-    const card = page.getByRole('article').filter({ hasText: 'Три тони' });
+    const card = row(page, 'New releases').getByRole('article').filter({ hasText: 'Три тони' });
     await card.hover();
     await card.getByRole('button', { name: /^Play/ }).click();
     await expect(player(page).getByRole('button', { name: 'Pause' })).toBeVisible();
@@ -731,5 +907,21 @@ test.describe('catalogue', () => {
     for (const id of ['30000000-0000-4000-8000-000000000003', 'test-book', 'x%27%3B--']) {
       expect((await request.get(`/api/player/books/${id}`)).status()).toBe(404);
     }
+  });
+
+  test('the books API returns card data for live books only', async ({ request }) => {
+    const ids = [
+      '30000000-0000-4000-8000-000000000001',
+      '30000000-0000-4000-8000-000000000003', // draft
+      'junk',
+    ].join(',');
+    const response = await request.get(`/api/catalogue/books?ids=${ids}`);
+    expect(response.status()).toBe(200);
+    const { books } = await response.json();
+    expect(books).toHaveLength(1);
+    expect(books[0]).toMatchObject({ slug: 'try-tony', chapterStarts: [0, 6.03, 12.06] });
+    expect(books[0].tracks).toBeUndefined();
+
+    expect((await (await request.get('/api/catalogue/books')).json()).books).toEqual([]);
   });
 });

@@ -100,7 +100,12 @@
     "home": {
       "title": "Home",
       "newReleases": "New releases",
-      "empty": "No books yet. Check back soon."
+      "empty": "No books yet. Check back soon.",
+      "continueListening": "Continue listening",
+      "seeAll": "See all",
+      "explore": "Explore",
+      "chapterOf": "Ch. {number} of {count}",
+      "pauseBook": "Pause {title}"
     },
     "explore": {
       "title": "Explore"
@@ -159,11 +164,13 @@
     "removeDownload": "Remove download",
     "goToAuthor": "Go to author",
     "share": "Share",
-    "listened": "{pct}% listened · {duration}"
+    "listened": "{pct}% listened · {duration}",
+    "ongoing": "Ongoing"
   },
   "common": {
     "durationHm": "{hours} h {minutes} m",
-    "durationM": "{minutes} m"
+    "durationM": "{minutes} m",
+    "loading": "Loading"
   },
   "book": {
     "chapters": "Chapters",
@@ -172,7 +179,30 @@
     "playAgain": "Play again",
     "pause": "Pause",
     "nowPlaying": "Now playing",
-    "comingSoon": "This arrives with the library.",
-    "playFailed": "Couldn't load this book. Check your connection and try again."
+    "comingSoon": "This isn't available yet. It's coming soon.",
+    "playFailed": "Couldn't load this book. Check your connection and try again.",
+    "resumeAt": "Resume · Ch. {number}, {time}",
+    "readBy": "read by {name}",
+    "chapterCount": "{count, plural, one {# chapter} other {# chapters}}",
+    "progress": "{pct}% · {left} left",
+    "finished": "Finished",
+    "upToDate": "You're up to date",
+    "ongoing": "Ongoing · more parts coming",
+    "like": "Like",
+    "listenLater": "Listen later",
+    "laterShort": "Later",
+    "download": "Download",
+    "offlineShort": "Offline",
+    "share": "Share",
+    "sections": "Book sections",
+    "chaptersTab": "Chapters · {count}",
+    "about": "About",
+    "reviews": "Reviews",
+    "noDescription": "No description yet.",
+    "chapterFinished": "Finished",
+    "language": {
+      "uk": "Ukrainian",
+      "en": "English"
+    }
   }
 }

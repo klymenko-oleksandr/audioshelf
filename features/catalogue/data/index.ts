@@ -4,7 +4,16 @@ import { unstable_cache } from 'next/cache';
 import { getDb } from '@/lib/db';
 import * as queries from './queries';
 
-export type { BookChapter, BookDetail, BookSummary, PersonRef } from './queries';
+export type {
+  BookChapter,
+  BookDetail,
+  BookSummary,
+  CategoryRef,
+  CategoryRow,
+  ContinueBook,
+  PersonRef,
+} from './queries';
+export { MAX_BOOK_IDS } from './queries';
 
 /**
  * Cached catalogue reads for pages and route handlers (ADR 6: the data is cached, not the
@@ -27,5 +36,7 @@ const cached = <Args extends unknown[], Result>(
   });
 
 export const listNewReleases = cached('new-releases', queries.listNewReleases);
+export const listCategoryRows = cached('category-rows', queries.listCategoryRows);
+export const listBooksByIds = cached('books-by-ids', queries.listBooksByIds);
 export const getBookBySlug = cached('book-by-slug', queries.getBookBySlug);
 export const getPlayerBook = cached('player-book', queries.getPlayerBook);

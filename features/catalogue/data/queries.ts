@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, isNull } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNull } from 'drizzle-orm';
 import type { PgDatabase, PgQueryResultHKT } from 'drizzle-orm/pg-core';
 import * as schema from '@/db/schema';
 import type { PlayerBook } from '@/features/player/core';
@@ -12,7 +12,7 @@ import { publicUrl } from '@/lib/r2/keys';
  */
 export type CatalogueDb = PgDatabase<PgQueryResultHKT, typeof schema>;
 
-const { books, tracks, chapters } = schema;
+const { books, tracks, chapters, categories } = schema;
 const live = and(eq(books.status, 'published'), isNull(books.deletedAt));
 
 /** The dev-URL fallback keeps local runs and tests working without an .env file. */
@@ -41,6 +41,23 @@ export interface BookSummary {
   ongoing: boolean;
 }
 
+/** A book in "Continue listening": the card also says which chapter the listener is in. */
+export interface ContinueBook extends BookSummary {
+  /** Book time where each chapter starts, in order. */
+  chapterStarts: number[];
+}
+
+export interface CategoryRef {
+  slug: string;
+  nameUk: string;
+  nameEn: string | null;
+}
+
+/** One Home row: a category and its newest books. */
+export interface CategoryRow extends CategoryRef {
+  books: BookSummary[];
+}
+
 export interface BookChapter {
   id: string;
   title: string;
@@ -51,7 +68,7 @@ export interface BookChapter {
 export interface BookDetail extends BookSummary {
   description: string | null;
   narrator: PersonRef | null;
-  category: { slug: string; nameUk: string; nameEn: string | null } | null;
+  category: CategoryRef | null;
   /** 1000 px cover, for the book page and share previews. */
   coverLargeUrl?: string;
   chapters: BookChapter[];
@@ -94,6 +111,57 @@ export async function listNewReleases(db: CatalogueDb, limit = 24): Promise<Book
     limit,
   });
   return rows.map(toSummary);
+}
+
+/**
+ * Home rows: every category that has live books, in the admin's order, each with its newest
+ * books. Categories without live books are left out.
+ */
+export async function listCategoryRows(db: CatalogueDb, perRow = 12): Promise<CategoryRow[]> {
+  const all = await db.query.categories.findMany({
+    columns: { id: true, slug: true, nameUk: true, nameEn: true },
+    orderBy: [asc(categories.position), asc(categories.nameUk)],
+  });
+  const rows = await Promise.all(
+    all.map(async ({ id, ...category }) => {
+      const found = await db.query.books.findMany({
+        columns: summaryColumns,
+        with: { author: person },
+        where: and(eq(books.categoryId, id), live),
+        orderBy: [desc(books.publishedAt), asc(books.title)],
+        limit: perRow,
+      });
+      return { ...category, books: found.map(toSummary) };
+    }),
+  );
+  return rows.filter((row) => row.books.length > 0);
+}
+
+/** The most ids one "Continue listening" request may ask for. */
+export const MAX_BOOK_IDS = 12;
+
+/**
+ * Live books by id, for "Continue listening" (the ids come from progress saved on the
+ * device). Ids that are not live, unknown or malformed are simply missing from the result.
+ */
+export async function listBooksByIds(
+  db: CatalogueDb,
+  ids: readonly string[],
+): Promise<ContinueBook[]> {
+  const valid = [...new Set(ids.filter((id) => UUID.test(id)))].slice(0, MAX_BOOK_IDS);
+  if (valid.length === 0) return [];
+  const rows = await db.query.books.findMany({
+    columns: summaryColumns,
+    with: {
+      author: person,
+      chapters: { columns: { startSeconds: true }, orderBy: [asc(chapters.position)] },
+    },
+    where: and(inArray(books.id, valid), live),
+  });
+  return rows.map((row) => ({
+    ...toSummary(row),
+    chapterStarts: row.chapters.map((chapter) => chapter.startSeconds),
+  }));
 }
 
 /** A live book for its page, or `null` (unknown, draft, scheduled or deleted → NotFound). */
