@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, isNull } from 'drizzle-orm';
+import { and, asc, count, desc, eq, inArray, isNull } from 'drizzle-orm';
 import type { PgDatabase, PgQueryResultHKT } from 'drizzle-orm/pg-core';
 import * as schema from '@/db/schema';
 import type { PlayerBook } from '@/features/player/core';
@@ -12,7 +12,7 @@ import { publicUrl } from '@/lib/r2/keys';
  */
 export type CatalogueDb = PgDatabase<PgQueryResultHKT, typeof schema>;
 
-const { books, tracks, chapters, categories } = schema;
+const { books, tracks, chapters, categories, authors } = schema;
 const live = and(eq(books.status, 'published'), isNull(books.deletedAt));
 
 /** The dev-URL fallback keeps local runs and tests working without an .env file. */
@@ -56,6 +56,31 @@ export interface CategoryRef {
 /** One Home row: a category and its newest books. */
 export interface CategoryRow extends CategoryRef {
   books: BookSummary[];
+}
+
+/** A category with how many live books it has (Explore tiles, category chips). */
+export interface CategoryCount extends CategoryRef {
+  bookCount: number;
+}
+
+/** A category page: the category and all of its live books, newest first. */
+export interface CategoryDetail extends CategoryRef {
+  books: BookSummary[];
+}
+
+/** A narrator on an author page, with how many of the author's books they read. */
+export interface NarratorCount extends PersonRef {
+  bookCount: number;
+}
+
+/** An author page: bio, all live books newest first, and who reads them. */
+export interface AuthorDetail extends PersonRef {
+  bio: string | null;
+  books: BookSummary[];
+  /** Most books first. */
+  narrators: NarratorCount[];
+  /** Total length of the author's live books. */
+  durationSeconds: number;
 }
 
 export interface BookChapter {
@@ -135,6 +160,96 @@ export async function listCategoryRows(db: CatalogueDb, perRow = 12): Promise<Ca
     }),
   );
   return rows.filter((row) => row.books.length > 0);
+}
+
+/**
+ * The most books one list page loads. There is no paging yet: the catalogue is tens of
+ * books, and a page sorts whatever it gets (`../sort.ts`).
+ */
+export const LIST_LIMIT = 500;
+
+/** Every live book, newest first (Explore). */
+export const listAllBooks = (db: CatalogueDb): Promise<BookSummary[]> =>
+  listNewReleases(db, LIST_LIMIT);
+
+/**
+ * Categories that have live books, in the admin's order, with their book counts. Empty
+ * categories are left out, as on Home.
+ */
+export async function listCategories(db: CatalogueDb): Promise<CategoryCount[]> {
+  return db
+    .select({
+      slug: categories.slug,
+      nameUk: categories.nameUk,
+      nameEn: categories.nameEn,
+      bookCount: count(books.id),
+    })
+    .from(categories)
+    .innerJoin(books, and(eq(books.categoryId, categories.id), live))
+    .groupBy(categories.id)
+    .orderBy(asc(categories.position), asc(categories.nameUk));
+}
+
+/**
+ * A category with all of its live books, newest first. `null` for an unknown slug; a
+ * category that exists but has no live books comes back with an empty list.
+ */
+export async function getCategoryBySlug(
+  db: CatalogueDb,
+  slug: string,
+): Promise<CategoryDetail | null> {
+  const category = await db.query.categories.findFirst({
+    columns: { id: true, slug: true, nameUk: true, nameEn: true },
+    where: eq(categories.slug, slug),
+  });
+  if (!category) return null;
+  const { id, ...ref } = category;
+  const rows = await db.query.books.findMany({
+    columns: summaryColumns,
+    with: { author: person },
+    where: and(eq(books.categoryId, id), live),
+    orderBy: [desc(books.publishedAt), asc(books.title)],
+    limit: LIST_LIMIT,
+  });
+  return { ...ref, books: rows.map(toSummary) };
+}
+
+/**
+ * An author with their live books, newest first. `null` for an unknown slug and for an
+ * author with no live books: listeners only meet authors through books they can open.
+ */
+export async function getAuthorBySlug(db: CatalogueDb, slug: string): Promise<AuthorDetail | null> {
+  const author = await db.query.authors.findFirst({
+    columns: { id: true, slug: true, name: true, bio: true },
+    where: eq(authors.slug, slug),
+  });
+  if (!author) return null;
+  const rows = await db.query.books.findMany({
+    columns: summaryColumns,
+    with: { author: person, narrator: person },
+    where: and(eq(books.authorId, author.id), live),
+    orderBy: [desc(books.publishedAt), asc(books.title)],
+    limit: LIST_LIMIT,
+  });
+  if (rows.length === 0) return null;
+
+  const narrators = new Map<string, NarratorCount>();
+  for (const { narrator } of rows) {
+    if (!narrator) continue;
+    const seen = narrators.get(narrator.slug);
+    if (seen) seen.bookCount += 1;
+    else narrators.set(narrator.slug, { ...narrator, bookCount: 1 });
+  }
+  return {
+    slug: author.slug,
+    name: author.name,
+    bio: author.bio,
+    books: rows.map(toSummary),
+    narrators: [...narrators.values()].sort(
+      (a, b) => b.bookCount - a.bookCount || a.name.localeCompare(b.name, 'uk'),
+    ),
+    durationSeconds: rows.reduce((sum, row) => sum + row.durationSeconds, 0),
+  };
 }
 
 /** The most ids one "Continue listening" request may ask for. */

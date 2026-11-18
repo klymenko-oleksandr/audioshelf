@@ -5,12 +5,16 @@ import { getDb } from '@/lib/db';
 import * as queries from './queries';
 
 export type {
+  AuthorDetail,
   BookChapter,
   BookDetail,
   BookSummary,
+  CategoryCount,
+  CategoryDetail,
   CategoryRef,
   CategoryRow,
   ContinueBook,
+  NarratorCount,
   PersonRef,
 } from './queries';
 export { MAX_BOOK_IDS } from './queries';
@@ -37,6 +41,10 @@ const cached = <Args extends unknown[], Result>(
 
 export const listNewReleases = cached('new-releases', queries.listNewReleases);
 export const listCategoryRows = cached('category-rows', queries.listCategoryRows);
+export const listAllBooks = cached('all-books', queries.listAllBooks);
+export const listCategories = cached('categories', queries.listCategories);
+export const getCategoryBySlug = cached('category-by-slug', queries.getCategoryBySlug);
+export const getAuthorBySlug = cached('author-by-slug', queries.getAuthorBySlug);
 export const listBooksByIds = cached('books-by-ids', queries.listBooksByIds);
 export const getBookBySlug = cached('book-by-slug', queries.getBookBySlug);
 export const getPlayerBook = cached('player-book', queries.getPlayerBook);

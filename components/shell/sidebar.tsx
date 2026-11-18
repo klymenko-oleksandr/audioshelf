@@ -33,6 +33,7 @@ async function SidebarItem({ item }: { item: NavItem }) {
   return (
     <NavLink
       href={item.href}
+      also={item.also}
       className={itemClass}
       icon={<Icon size={18} aria-hidden className="text-muted-foreground" />}
       activeIcon={<ActiveIcon size={18} aria-hidden className="text-brand" />}
