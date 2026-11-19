@@ -33,7 +33,36 @@
   },
   "search": {
     "label": "Пошук",
-    "placeholder": "Пошук книг, авторів, читців"
+    "placeholder": "Пошук книг, авторів, читців",
+    "clear": "Очистити пошук",
+    "searching": "Шукаємо",
+    "resultsFor": "Результати за запитом «{query}»",
+    "emptyTitle": "Нічого не знайдено за запитом «{query}»",
+    "emptyHint": "Перевірте написання або спробуйте шукати за автором чи читцем.",
+    "startHint": "Шукайте книги, авторів і читців.",
+    "tabs": {
+      "label": "Результати пошуку",
+      "all": "Усі",
+      "books": "Книги · {count}",
+      "authors": "Автори · {count}",
+      "narrators": "Читці · {count}"
+    },
+    "topResult": "Найкращий збіг",
+    "books": "Книги",
+    "authors": "{count, plural, one {Автор} few {Автори} many {Автори} other {Автори}}",
+    "narrators": "{count, plural, one {Читець} few {Читці} many {Читці} other {Читці}}",
+    "authorMeta": "Автор · {books}",
+    "narratorMeta": "Читець · {books}",
+    "readBy": "читає {name}",
+    "browseCategories": "Огляд за категоріями",
+    "tryCategory": "Спробуйте категорію",
+    "recent": "Нещодавні",
+    "clearRecent": "Очистити нещодавні пошуки",
+    "recentItem": "Шукати ще раз: {query}",
+    "listened": "Прослухано {pct}%",
+    "resumeChapter": "Продовжити · розд. {number}",
+    "playShort": "Слухати",
+    "launcherPlaceholder": "Книги, автори, читці"
   },
   "auth": {
     "signIn": "Увійти"
@@ -226,5 +255,9 @@
       "uk": "Українська",
       "en": "Англійська"
     }
+  },
+  "share": {
+    "copied": "Посилання скопійовано",
+    "failed": "Не вдалося скопіювати посилання."
   }
 }

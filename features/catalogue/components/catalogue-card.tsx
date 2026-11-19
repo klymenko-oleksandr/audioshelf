@@ -5,6 +5,7 @@ import { toast } from '@/components/ui/toast';
 import { useDurationLabel } from '@/features/player/components/use-duration-label';
 import { useBookProgress } from '@/features/player/player';
 import { playBook } from '@/features/player/play-book';
+import { useShare } from '@/features/share/share';
 import type { BookSummary } from '../data/queries';
 import { BookCard } from './book-card';
 
@@ -19,6 +20,7 @@ export function CatalogueCard({ book, className }: { book: BookSummary; classNam
   const progress = useBookProgress(book.id);
   // Likes and Listen later arrive in Phase 5, downloads in Phase 7.
   const soon = () => toast({ title: t('comingSoon') });
+  const share = useShare();
 
   return (
     <BookCard
@@ -42,7 +44,7 @@ export function CatalogueCard({ book, className }: { book: BookSummary; classNam
       onToggleLike={soon}
       onToggleListenLater={soon}
       onToggleDownload={soon}
-      onShare={soon}
+      onShare={() => share({ title: book.title, path: `/book/${book.slug}` })}
     />
   );
 }

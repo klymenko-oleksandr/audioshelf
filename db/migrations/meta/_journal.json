@@ -22,6 +22,13 @@
       "when": 1794776732039,
       "tag": "0002_lock_down_api_roles",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1795100309792,
+      "tag": "0003_search_indexes",
+      "breakpoints": true
     }
   ]
 }

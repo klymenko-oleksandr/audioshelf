@@ -12,7 +12,12 @@ type Props = {
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const author = await getAuthorBySlug((await params).slug);
   if (!author) return {};
-  return { title: author.name, description: author.bio?.slice(0, 200) };
+  const description = author.bio?.slice(0, 200);
+  return {
+    title: author.name,
+    description,
+    openGraph: { type: 'profile', title: author.name, description },
+  };
 }
 
 /** An author's page (canvas: Author, MAuthor). Unknown authors, and authors with no live books, are NotFound. */

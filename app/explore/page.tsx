@@ -4,6 +4,8 @@ import { Suspense } from 'react';
 import { BookGrid, BookGridSkeleton, ListToolbar } from '@/features/catalogue/components/book-grid';
 import { CategoryChips, CategoryTiles } from '@/features/catalogue/components/category-nav';
 import { listAllBooks, listCategories } from '@/features/catalogue/data';
+import { RecentSearches } from '@/features/search/components/recent-searches';
+import { SearchField } from '@/features/search/components/search-field';
 import { parseBookSort, sortBooks, type BookSort } from '@/features/catalogue/sort';
 
 type Props = { searchParams: Promise<{ sort?: string | string[] }> };
@@ -72,6 +74,11 @@ export default async function ExplorePage({ searchParams }: Props) {
       <h1 className="font-heading text-[26px] leading-8 font-semibold tracking-[-0.02em] md:text-[30px] md:leading-9 md:tracking-[-0.025em]">
         {t('pages.explore.title')}
       </h1>
+      {/* Phones search from here (canvas: MExplore); tablets and desktop have the top bar. */}
+      <div className="flex flex-col gap-3 md:hidden">
+        <SearchField variant="launcher" placeholder={t('search.launcherPlaceholder')} />
+        <RecentSearches />
+      </div>
       <Suspense fallback={<BookGridSkeleton label={t('common.loading')} />}>
         <ExploreContent sort={parseBookSort(sort)} />
       </Suspense>

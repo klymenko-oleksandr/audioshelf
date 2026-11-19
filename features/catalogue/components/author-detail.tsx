@@ -3,6 +3,7 @@ import { splitDuration } from '@/features/player/core';
 import type { AuthorDetail as Author } from '../data/queries';
 import { initials } from '../names';
 import { sortBooks, type BookSort } from '../sort';
+import { AuthorShare } from './author-share';
 import { BookGrid } from './book-grid';
 import { SortMenu } from './sort-menu';
 
@@ -39,6 +40,7 @@ export async function AuthorDetail({ author, sort }: { author: Author; sort: Boo
               {author.bio}
             </p>
           ) : null}
+          <AuthorShare name={author.name} slug={author.slug} />
         </div>
       </section>
 

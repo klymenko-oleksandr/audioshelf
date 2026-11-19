@@ -33,7 +33,36 @@
   },
   "search": {
     "label": "Search",
-    "placeholder": "Search books, authors, narrators"
+    "placeholder": "Search books, authors, narrators",
+    "clear": "Clear search",
+    "searching": "Searching",
+    "resultsFor": "Results for “{query}”",
+    "emptyTitle": "No results for “{query}”",
+    "emptyHint": "Check the spelling or try an author or narrator instead.",
+    "startHint": "Find books, authors and narrators.",
+    "tabs": {
+      "label": "Search results",
+      "all": "All",
+      "books": "Books · {count}",
+      "authors": "Authors · {count}",
+      "narrators": "Narrators · {count}"
+    },
+    "topResult": "Top result",
+    "books": "Books",
+    "authors": "{count, plural, one {Author} other {Authors}}",
+    "narrators": "{count, plural, one {Narrator} other {Narrators}}",
+    "authorMeta": "Author · {books}",
+    "narratorMeta": "Narrator · {books}",
+    "readBy": "read by {name}",
+    "browseCategories": "Browse categories",
+    "tryCategory": "Try a category",
+    "recent": "Recent",
+    "clearRecent": "Clear recent searches",
+    "recentItem": "Search again: {query}",
+    "listened": "{pct}% listened",
+    "resumeChapter": "Resume · Ch. {number}",
+    "playShort": "Play",
+    "launcherPlaceholder": "Books, authors, narrators"
   },
   "auth": {
     "signIn": "Sign in"
@@ -226,5 +255,9 @@
       "uk": "Ukrainian",
       "en": "English"
     }
+  },
+  "share": {
+    "copied": "Link copied",
+    "failed": "Couldn't copy the link."
   }
 }

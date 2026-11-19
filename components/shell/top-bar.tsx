@@ -1,7 +1,9 @@
 import { RiGoogleFill, RiSearchLine } from '@remixicon/react';
 import Link from 'next/link';
 import { getTranslations } from 'next-intl/server';
+import { Suspense } from 'react';
 import { buttonVariants } from '@/components/ui/button';
+import { SearchField } from '@/features/search/components/search-field';
 import { BrandLink } from './brand';
 
 /**
@@ -25,21 +27,14 @@ export async function TopBar() {
         <RiSearchLine size={20} aria-hidden />
       </Link>
 
-      {/* A plain GET form: works before hydration and keeps the query in the URL (PRD). */}
-      <form
-        action="/search"
-        role="search"
-        className="border-input text-muted-foreground focus-within:shadow-focus hidden h-10 grow items-center gap-2 rounded-lg border px-3 shadow-xs md:flex lg:h-8 lg:max-w-120 lg:rounded-md lg:px-2.5"
-      >
-        <RiSearchLine aria-hidden className="size-[18px] shrink-0 lg:size-4" />
-        <input
-          type="search"
-          name="q"
+      {/* A plain GET form until the page is interactive, then results follow the typing. */}
+      <Suspense fallback={null}>
+        <SearchField
+          variant="bar"
           placeholder={t('search.placeholder')}
-          aria-label={t('search.label')}
-          className="text-foreground placeholder:text-muted-foreground min-w-0 grow bg-transparent text-[16px] outline-none focus-visible:shadow-none lg:text-[13px]"
+          className="hidden md:flex lg:max-w-120"
         />
-      </form>
+      </Suspense>
 
       <div className="hidden grow lg:block" />
 
