@@ -76,7 +76,7 @@ export function BooksTable({ rows, now }: { rows: AdminBookRow[]; now: Date }) {
           <div
             key={book.id}
             role="row"
-            className={`${COLUMNS} border-border hover:bg-muted/40 border-b px-4 py-2.5 last:border-b-0`}
+            className={`${COLUMNS} border-border hover:bg-muted/40 relative border-b px-4 py-2.5 last:border-b-0`}
           >
             <div role="cell" className="size-11 overflow-hidden rounded-sm">
               <BookCover title={book.title} seed={book.slug} />
@@ -84,7 +84,7 @@ export function BooksTable({ rows, now }: { rows: AdminBookRow[]; now: Date }) {
             <div role="cell" className="flex min-w-0 flex-col gap-0.5">
               <Link
                 href={`/admin/books/${book.id}`}
-                className="truncate text-[13px] font-medium hover:underline"
+                className="truncate text-[13px] font-medium after:absolute after:inset-0 hover:underline"
               >
                 {book.title}
               </Link>
