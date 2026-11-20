@@ -417,6 +417,7 @@ export function Showcase() {
         note="Shown on cold start until the app is ready, then fades out over 150 ms. Hold it to see the 3 s and 15 s messages."
       >
         {/* A full page load on purpose: the splash only exists on cold start. */}
+        {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
         <a href="/dev/ui?splash=hold" className="text-brand underline underline-offset-4">
           Open with the splash held
         </a>

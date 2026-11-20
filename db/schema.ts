@@ -247,3 +247,25 @@ export type Author = typeof authors.$inferSelect;
 export type Narrator = typeof narrators.$inferSelect;
 export type Category = typeof categories.$inferSelect;
 export type Mood = typeof moods.$inferSelect;
+
+/**
+ * Failed-login bookkeeping for the admin panel (ADR 5): one row per client address, keyed by
+ * an HMAC of the IP so no address is stored. Lives in the database because serverless
+ * instances keep no memory between requests. Rows are tiny and cleaned up as they age.
+ */
+export const adminLoginAttempts = pgTable(
+  'admin_login_attempts',
+  {
+    /** `ip:` + hex HMAC of the client address (lib/auth/admin/client-ip.ts). */
+    key: text().primaryKey(),
+    /** Attempts counted in the current window, the one in progress included. */
+    failedCount: integer().notNull().default(0),
+    lastAttemptAt: timestamp({ withTimezone: true }),
+    /** While in the future, every attempt from this address is refused unchecked. */
+    lockedUntil: timestamp({ withTimezone: true }),
+  },
+  (t) => [
+    index('admin_login_attempts_last_attempt_at_idx').on(t.lastAttemptAt),
+    check('admin_login_attempts_count_check', sql`${t.failedCount} >= 0`),
+  ],
+).enableRLS();

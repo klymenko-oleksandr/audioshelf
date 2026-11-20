@@ -165,10 +165,14 @@ test.describe('favicon and generated images', () => {
       'summary_large_image',
     );
 
-    const og = await request.get('/book/try-tony/opengraph-image');
+    // Next adds a hash to the image address (`opengraph-image-<hash>`); follow the page's own link.
+    const href = await page.locator('meta[property="og:image"]').getAttribute('content');
+    const path = new URL(href!).pathname;
+    expect(path).toMatch(/^\/book\/try-tony\/opengraph-image/);
+    const og = await request.get(path);
     expect(og.status()).toBe(200);
     expect(og.headers()['content-type']).toContain('image/png');
-    expect((await request.get('/book/no-such-book/opengraph-image')).status()).toBe(404);
+    expect((await request.get(path.replace('/try-tony/', '/no-such-book/'))).status()).toBe(404);
   });
 
   test('the lock-screen cover is a PNG for live books only', async ({ request }) => {

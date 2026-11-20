@@ -2,7 +2,10 @@ import 'server-only';
 
 import { unstable_cache } from 'next/cache';
 import { getDb } from '@/lib/db';
+import { CATALOGUE_TAG } from '../cache-tag';
 import * as queries from './queries';
+
+export { CATALOGUE_TAG };
 
 export type {
   AuthorDetail,
@@ -27,10 +30,9 @@ export { MAX_BOOK_IDS, MAX_SEARCH_TOKENS, searchStem, searchTokens } from './que
  * page, because the language cookie makes every page render per request).
  *
  * Everything carries the `catalogue` tag; the admin revalidates it on every change
- * (Phase 4). Until then the time limit below is what picks up changes made directly in the
- * database.
+ * (`features/admin/revalidate.ts`). The time limit below only picks up changes made directly in
+ * the database.
  */
-export const CATALOGUE_TAG = 'catalogue';
 const REVALIDATE_SECONDS = 300;
 
 const cached = <Args extends unknown[], Result>(

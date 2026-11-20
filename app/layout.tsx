@@ -1,9 +1,6 @@
 import type { Metadata, Viewport } from 'next';
 import { NextIntlClientProvider } from 'next-intl';
 import { getLocale, getTranslations } from 'next-intl/server';
-import { AppReady } from '@/components/shell/app-ready';
-import { AppShell } from '@/components/shell/app-shell';
-import { Splash } from '@/components/shell/splash';
 import { Toaster } from '@/components/ui/toast';
 import './globals.css';
 
@@ -32,12 +29,10 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
   return (
     <html lang={locale}>
       <body>
-        <Splash />
         <NextIntlClientProvider>
-          <AppShell>{children}</AppShell>
+          {children}
           <Toaster />
         </NextIntlClientProvider>
-        <AppReady />
       </body>
     </html>
   );

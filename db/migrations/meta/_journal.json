@@ -29,6 +29,13 @@
       "when": 1795100309792,
       "tag": "0003_search_indexes",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1795188935491,
+      "tag": "0004_admin_login_attempts",
+      "breakpoints": true
     }
   ]
 }

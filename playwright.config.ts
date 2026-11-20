@@ -1,4 +1,5 @@
 import { defineConfig, devices } from '@playwright/test';
+import { ADMIN_PASSWORD_HASH, ADMIN_SESSION_SECRET } from './e2e/fixtures/admin';
 
 const PORT = Number(process.env.PORT ?? 3000);
 const E2E_DB_PORT = 54329;
@@ -38,6 +39,8 @@ export default defineConfig({
           env: {
             DATABASE_URL: `postgres://postgres:postgres@127.0.0.1:${E2E_DB_PORT}/postgres`,
             NEXT_PUBLIC_MEDIA_BASE_URL: `http://localhost:${PORT}/dev/audio`,
+            ADMIN_PASSWORD_HASH,
+            ADMIN_SESSION_SECRET,
           },
         },
       ],
