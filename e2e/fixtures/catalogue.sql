@@ -42,3 +42,6 @@ INSERT INTO chapters (book_id, position, title, start_seconds, end_seconds) VALU
   ('30000000-0000-4000-8000-000000000001', 3, 'Третій тон', 12.06, 16.11),
   ('30000000-0000-4000-8000-000000000002', 1, 'Єдиний розділ', 0, 6.03),
   ('30000000-0000-4000-8000-000000000003', 1, 'Єдиний розділ', 0, 6.03);
+
+-- Cover keys on "Три тони": the UI must still draw the typographic cover, not an <img>.
+UPDATE books SET cover_large_key = 'covers/try-tony/1000.jpg', cover_medium_key = 'covers/try-tony/500.jpg', cover_small_key = 'covers/try-tony/250.jpg' WHERE slug = 'try-tony';

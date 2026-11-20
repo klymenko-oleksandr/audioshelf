@@ -16,8 +16,11 @@ export type {
   ContinueBook,
   NarratorCount,
   PersonRef,
+  SearchBook,
+  SearchPerson,
+  SearchResults,
 } from './queries';
-export { MAX_BOOK_IDS } from './queries';
+export { MAX_BOOK_IDS, MAX_SEARCH_TOKENS, searchStem, searchTokens } from './queries';
 
 /**
  * Cached catalogue reads for pages and route handlers (ADR 6: the data is cached, not the
@@ -48,3 +51,9 @@ export const getAuthorBySlug = cached('author-by-slug', queries.getAuthorBySlug)
 export const listBooksByIds = cached('books-by-ids', queries.listBooksByIds);
 export const getBookBySlug = cached('book-by-slug', queries.getBookBySlug);
 export const getPlayerBook = cached('player-book', queries.getPlayerBook);
+
+/**
+ * Search is not cached: queries are open-ended, so a cache would only fill up with one-off
+ * entries. It reads the database directly, like any other request.
+ */
+export const searchCatalogue = (query: string) => queries.searchCatalogue(getDb(), query);

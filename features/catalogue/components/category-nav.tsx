@@ -85,12 +85,16 @@ interface CategoryTilesProps {
   locale: string;
   /** Formats a tile's count line ("12 books"). */
   countLabel: (count: number) => string;
+  className?: string;
 }
 
-/** Category tiles for the phone Explore screen (canvas: MExplore), two per line. */
-export function CategoryTiles({ categories, locale, countLabel }: CategoryTilesProps) {
+/**
+ * Category tiles (canvas: MExplore, Search): two per line, or as many as `className` asks
+ * for. The search page shows four per line from tablets up.
+ */
+export function CategoryTiles({ categories, locale, countLabel, className }: CategoryTilesProps) {
   return (
-    <ul className="grid grid-cols-2 gap-2.5">
+    <ul className={cn('grid grid-cols-2 gap-2.5', className)}>
       {categories.map((category, index) => (
         <li key={category.slug}>
           <Link

@@ -19,6 +19,7 @@ import { useDurationLabel } from '@/features/player/components/use-duration-labe
 import { chapterIndexAt, formatClock, isFinished } from '@/features/player/core';
 import { playBook } from '@/features/player/play-book';
 import { getPlayer, useBookProgress, usePlayerState } from '@/features/player/player';
+import { useShare } from '@/features/share/share';
 import { cn } from '@/lib/utils';
 import { parseBookTab, type BookTab } from '../book-tabs';
 import type { BookDetail as BookDetailData } from '../data/queries';
@@ -38,7 +39,7 @@ const underlined = 'underline underline-offset-3';
  * stacks and centres when narrow; About is a tab when narrow and a side column when wide.
  *
  * It gets the page data (no tracks). Pressing Play or a chapter loads the tracks.
- * Like, Listen later, Download, Share and Reviews are not built yet and say so.
+ * Like, Listen later, Download and Reviews are not built yet and say so.
  */
 export function BookDetail({ book, initialTab }: { book: BookDetailData; initialTab: BookTab }) {
   const t = useTranslations('book');
@@ -72,6 +73,8 @@ export function BookDetail({ book, initialTab }: { book: BookDetailData; initial
   const author = book.author?.name ?? '';
   const failed = { failed: t('playFailed') };
   const soon = () => toast({ title: t('comingSoon') });
+  const share = useShare();
+  const onShare = () => share({ title: book.title, path: `/book/${book.slug}` });
 
   const onMain = () => {
     if (playingHere) getPlayer().pause();
@@ -207,7 +210,7 @@ export function BookDetail({ book, initialTab }: { book: BookDetailData; initial
                 <RiDownload2Line aria-hidden />
                 {t('download')}
               </Button>
-              <Button variant="ghost" size="icon-lg" aria-label={t('share')} onClick={soon}>
+              <Button variant="ghost" size="icon-lg" aria-label={t('share')} onClick={onShare}>
                 <RiShareForwardLine aria-hidden />
               </Button>
             </div>
@@ -216,16 +219,16 @@ export function BookDetail({ book, initialTab }: { book: BookDetailData; initial
             <div className="flex justify-between @2xl:hidden">
               {(
                 [
-                  [RiHeartLine, t('like')],
-                  [RiPlayListAddLine, t('laterShort')],
-                  [RiDownload2Line, t('offlineShort')],
-                  [RiShareForwardLine, t('share')],
+                  [RiHeartLine, t('like'), soon],
+                  [RiPlayListAddLine, t('laterShort'), soon],
+                  [RiDownload2Line, t('offlineShort'), soon],
+                  [RiShareForwardLine, t('share'), onShare],
                 ] as const
-              ).map(([Icon, label]) => (
+              ).map(([Icon, label, onClick]) => (
                 <button
                   key={label}
                   type="button"
-                  onClick={soon}
+                  onClick={onClick}
                   className="text-muted-foreground flex min-h-14 w-18 flex-col items-center gap-0.5 rounded-md py-1 text-[11px]"
                 >
                   <Icon size={24} aria-hidden className="text-foreground" />

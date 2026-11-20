@@ -1,3 +1,4 @@
+import { COVER_IMAGES_ENABLED } from '@/features/catalogue/cover-images';
 import { DEFAULT_SKIP_BACK_S, DEFAULT_SKIP_FORWARD_S } from '../core';
 import type { AudioEngine, PlayerState } from './audio-engine';
 
@@ -54,7 +55,7 @@ export function attachMediaSession(engine: AudioEngine): () => void {
         title: book.chapters[chapterIndex]?.title ?? book.title,
         artist: book.author,
         album: book.title,
-        artwork: book.coverUrl ? [{ src: book.coverUrl }] : [],
+        artwork: artworkFor(book),
       });
     }
 
@@ -84,4 +85,15 @@ export function attachMediaSession(engine: AudioEngine): () => void {
       }
     }
   };
+}
+
+/**
+ * Lock-screen artwork: the uploaded cover when cover images are on, otherwise the generated
+ * typographic cover from the server (the same one the app draws), so the lock screen matches.
+ */
+function artworkFor(book: { slug: string; coverUrl?: string }): MediaImage[] {
+  if (COVER_IMAGES_ENABLED && book.coverUrl) return [{ src: book.coverUrl }];
+  return [
+    { src: `/api/cover/${encodeURIComponent(book.slug)}`, sizes: '512x512', type: 'image/png' },
+  ];
 }

@@ -2,31 +2,28 @@
 
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
+import { COVER_IMAGES_ENABLED } from '../cover-images';
+import { toneFor, type CoverTone } from '../cover-tones';
 
 /** Generated cover palettes from the canvas, used when a book has no poster. */
-const TONES = {
+const TONES: Record<CoverTone, string> = {
   ink: 'bg-foreground text-background',
   green: 'bg-primary text-primary-foreground',
   stone: 'bg-chart-3 text-zinc-50',
   mist: 'bg-chart-1 text-chart-5',
   deep: 'bg-chart-5 text-chart-1',
   lime: 'bg-sidebar-primary text-chart-5',
-} as const;
+};
 
-export type CoverTone = keyof typeof TONES;
-const toneNames = Object.keys(TONES) as CoverTone[];
-
-/** Stable tone for a book, so its generated cover looks the same everywhere. */
-export function toneFor(seed: string): CoverTone {
-  let hash = 0;
-  for (const char of seed) hash = (hash * 31 + char.codePointAt(0)!) >>> 0;
-  return toneNames[hash % toneNames.length]!;
-}
+export { toneFor, type CoverTone };
 
 interface BookCoverProps {
   title: string;
   author?: string;
-  /** Poster URL (square). Without it a typographic cover is generated. */
+  /**
+   * Poster URL (square). Without it, or while cover images are off (`cover-images.ts`), a
+   * typographic cover is generated.
+   */
   src?: string;
   tone?: CoverTone;
   /** Seed for the generated tone when `tone` is not given (use the book slug). */
@@ -52,7 +49,7 @@ export function BookCover({
   // A poster that is missing or fails to load falls back to the generated cover.
   const [failedSrc, setFailedSrc] = useState<string | null>(null);
 
-  if (src && src !== failedSrc) {
+  if (COVER_IMAGES_ENABLED && src && src !== failedSrc) {
     return (
       // Posters come from the R2 CDN in fixed sizes; next/image would only re-encode them.
       // eslint-disable-next-line @next/next/no-img-element

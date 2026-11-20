@@ -1,5 +1,5 @@
-import { and, asc, count, desc, eq, inArray, isNull } from 'drizzle-orm';
-import type { PgDatabase, PgQueryResultHKT } from 'drizzle-orm/pg-core';
+import { and, asc, count, desc, eq, inArray, isNull, or, sql, type SQL } from 'drizzle-orm';
+import type { AnyPgColumn, PgDatabase, PgQueryResultHKT } from 'drizzle-orm/pg-core';
 import * as schema from '@/db/schema';
 import type { PlayerBook } from '@/features/player/core';
 import { publicUrl } from '@/lib/r2/keys';
@@ -12,7 +12,7 @@ import { publicUrl } from '@/lib/r2/keys';
  */
 export type CatalogueDb = PgDatabase<PgQueryResultHKT, typeof schema>;
 
-const { books, tracks, chapters, categories, authors } = schema;
+const { books, tracks, chapters, categories, authors, narrators } = schema;
 const live = and(eq(books.status, 'published'), isNull(books.deletedAt));
 
 /** The dev-URL fallback keeps local runs and tests working without an .env file. */
@@ -351,5 +351,157 @@ export async function getPlayerBook(db: CatalogueDb, id: string): Promise<Player
       end: chapter.endSeconds,
     })),
     ongoing: row.ongoing,
+  };
+}
+
+// ---------------------------------------------------------------------------------------------
+// Search
+// ---------------------------------------------------------------------------------------------
+
+/** A book found by search: the card data, plus who reads it (shown in the result row). */
+export interface SearchBook extends BookSummary {
+  narrator: PersonRef | null;
+}
+
+/** An author or narrator found by search, with how many live books they have. */
+export interface SearchPerson extends PersonRef {
+  bookCount: number;
+}
+
+export interface SearchResults {
+  /** Best match first. */
+  books: SearchBook[];
+  authors: SearchPerson[];
+  narrators: SearchPerson[];
+}
+
+/** At most this many words of a query are used, each cut to `MAX_TOKEN_LENGTH` characters. */
+export const MAX_SEARCH_TOKENS = 5;
+const MAX_TOKEN_LENGTH = 40;
+const BOOK_LIMIT = 50;
+const PEOPLE_LIMIT = 12;
+/** How alike two words must be (pg_trgm `word_similarity`, 0–1) to count as the same word. */
+const SIMILARITY = 0.55;
+
+/** The words of a search query: letters and digits, lower-cased, no punctuation. */
+export function searchTokens(query: string): string[] {
+  return (query.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? [])
+    .slice(0, MAX_SEARCH_TOKENS)
+    .map((token) => token.slice(0, MAX_TOKEN_LENGTH));
+}
+
+/**
+ * The part of a word that survives inflection: Ukrainian "перстень" and "персня" share
+ * "перс", English "holmes" and "holmes's" share "holm". Short words are used whole.
+ */
+export function searchStem(token: string): string {
+  const length = [...token].length;
+  if (length <= 4) return token;
+  return [...token].slice(0, length <= 5 ? length - 1 : 4).join('');
+}
+
+/**
+ * How well one query word matches a column, 0–1: 1 when a word of the column starts with the
+ * word's stem, otherwise pg_trgm's word similarity (which forgives typos). Words of three
+ * letters or fewer only match by prefix, because trigrams say little about them.
+ *
+ * Both sides go through `search_norm` (migration 0003), so case, accents and й/и do not matter.
+ */
+function fieldScore(token: string, column: SQL | AnyPgColumn): SQL<number> {
+  const text = sql`public.search_norm(${column})`;
+  const prefix = sql`position(' ' || public.search_norm(${searchStem(token)}) in ' ' || ${text}) > 0`;
+  if ([...token].length <= 3) return sql<number>`(case when ${prefix} then 1.0 else 0.0 end)`;
+  return sql<number>`(case when ${prefix} then 1.0
+    else extensions.word_similarity(public.search_norm(${token}), ${text}) end)`;
+}
+
+const matches = (token: string, column: SQL | AnyPgColumn): SQL =>
+  sql`(${fieldScore(token, column)} >= ${SIMILARITY})`;
+
+/**
+ * Books, authors and narrators matching a query. Every word of the query must match
+ * (a book's title, author or narrator); results are ranked by how closely, title first.
+ * Only live books are found, and people only through their live books.
+ */
+export async function searchCatalogue(db: CatalogueDb, query: string): Promise<SearchResults> {
+  const tokens = searchTokens(query);
+  if (tokens.length === 0) return { books: [], authors: [], narrators: [] };
+
+  const bookRank = sql<number>`(${sql.join(
+    tokens.map(
+      (token) =>
+        sql`greatest(${fieldScore(token, books.title)} * 1.5, ${fieldScore(token, authors.name)}, ${fieldScore(token, narrators.name)})`,
+    ),
+    sql` + `,
+  )})`;
+  const bookRows = await db
+    .select({
+      id: books.id,
+      slug: books.slug,
+      title: books.title,
+      coverMediumKey: books.coverMediumKey,
+      durationSeconds: books.durationSeconds,
+      language: books.language,
+      ongoing: books.ongoing,
+      authorSlug: authors.slug,
+      authorName: authors.name,
+      narratorSlug: narrators.slug,
+      narratorName: narrators.name,
+    })
+    .from(books)
+    .leftJoin(authors, eq(authors.id, books.authorId))
+    .leftJoin(narrators, eq(narrators.id, books.narratorId))
+    .where(
+      and(
+        live,
+        ...tokens.map((token) =>
+          or(
+            matches(token, books.title),
+            matches(token, authors.name),
+            matches(token, narrators.name),
+          ),
+        ),
+      ),
+    )
+    .orderBy(desc(bookRank), desc(books.publishedAt), asc(books.title))
+    .limit(BOOK_LIMIT);
+
+  const people = (table: typeof authors | typeof narrators, foreignKey: AnyPgColumn) => {
+    const rank = sql<number>`(${sql.join(
+      tokens.map((token) => fieldScore(token, table.name)),
+      sql` + `,
+    )})`;
+    return db
+      .select({ slug: table.slug, name: table.name, bookCount: count(books.id) })
+      .from(table)
+      .innerJoin(books, and(eq(foreignKey, table.id), live))
+      .where(and(...tokens.map((token) => matches(token, table.name))))
+      .groupBy(table.id)
+      .orderBy(desc(rank), asc(table.name))
+      .limit(PEOPLE_LIMIT);
+  };
+  const [authorRows, narratorRows] = await Promise.all([
+    people(authors, books.authorId),
+    people(narrators, books.narratorId),
+  ]);
+
+  return {
+    books: bookRows.map((row) => ({
+      id: row.id,
+      slug: row.slug,
+      title: row.title,
+      author:
+        row.authorSlug && row.authorName ? { slug: row.authorSlug, name: row.authorName } : null,
+      narrator:
+        row.narratorSlug && row.narratorName
+          ? { slug: row.narratorSlug, name: row.narratorName }
+          : null,
+      coverUrl: media(row.coverMediumKey),
+      durationSeconds: row.durationSeconds,
+      language: row.language,
+      ongoing: row.ongoing,
+    })),
+    authors: authorRows,
+    narrators: narratorRows,
   };
 }
