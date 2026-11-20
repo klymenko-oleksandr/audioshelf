@@ -19,7 +19,8 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:studio": "drizzle-kit studio",
-    "r2:cors": "node --env-file=.env scripts/r2-cors.mjs"
+    "r2:cors": "node --env-file=.env scripts/r2-cors.mjs",
+    "admin:hash": "node scripts/admin-hash.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1169.0",
@@ -33,6 +34,7 @@
     "cn": "^0.5.2",
     "dexie": "^4.4.7",
     "drizzle-orm": "^0.45.4",
+    "jose": "^6.2.18",
     "next": "^16.4.6",
     "next-intl": "^4.15.1",
     "postgres": "3.4",
