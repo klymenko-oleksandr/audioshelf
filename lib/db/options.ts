@@ -9,7 +9,5 @@ export function clientOptions(production: boolean) {
     // the function timed out (production, 21 Nov: every page that ran queries with Promise.all).
     max_pipeline: 1,
     connect_timeout: 10,
-    // Do not keep an idle connection around for a later request to trip over.
-    idle_timeout: 20,
   };
 }

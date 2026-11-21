@@ -6,6 +6,7 @@ import { attemptLogin, readLoginEnv } from '@/lib/auth/admin/login';
 import { LOGIN_PATH, safeNextPath } from '@/lib/auth/admin/redirect';
 import { ADMIN_SESSION_COOKIE, adminCookieOptions } from '@/lib/auth/admin/session';
 import { getDb } from '@/lib/db';
+import { withTimeout } from '@/lib/with-timeout';
 
 export type LoginFormState =
   | { error: null }
@@ -24,12 +25,17 @@ export async function signIn(
 
   let result;
   try {
-    result = await attemptLogin({
-      db: getDb(),
-      headers: await headers(),
-      password: typeof password === 'string' ? password : '',
-      env: readLoginEnv(),
-    });
+    // A hung database call must end as an error the form can show, not as a 5-minute spinner.
+    result = await withTimeout(
+      attemptLogin({
+        db: getDb(),
+        headers: await headers(),
+        password: typeof password === 'string' ? password : '',
+        env: readLoginEnv(),
+      }),
+      15_000,
+      'Admin sign-in',
+    );
   } catch (error) {
     console.error('Admin sign-in failed', error);
     return { error: 'unavailable' };
