@@ -1,10 +1,14 @@
 import { RiHeadphoneLine, RiLogoutBoxRLine } from '@remixicon/react';
+import { count, isNull } from 'drizzle-orm';
 import Link from 'next/link';
+import { Suspense } from 'react';
+import { books } from '@/db/schema';
+import { getDb } from '@/lib/db';
 import { signOut } from '@/app/(admin)/admin/login/actions';
 import { AdminNav } from './admin-nav';
 
 /** Canvas: AdminBooks sidebar. Desktop only; the panel is not built for phones (PRD). */
-export function AdminSidebar({ bookCount }: { bookCount: number }) {
+export function AdminSidebar() {
   return (
     <aside className="bg-sidebar border-sidebar-border sticky top-0 flex h-dvh flex-col gap-6 border-r px-3 py-5">
       <div className="flex h-8 items-center gap-2.5 px-2">
@@ -17,7 +21,13 @@ export function AdminSidebar({ bookCount }: { bookCount: number }) {
         </span>
       </div>
 
-      <AdminNav bookCount={bookCount} />
+      <AdminNav
+        bookCount={
+          <Suspense fallback={<span aria-hidden>…</span>}>
+            <BookCount />
+          </Suspense>
+        }
+      />
 
       <div className="grow" />
 
@@ -41,4 +51,19 @@ export function AdminSidebar({ bookCount }: { bookCount: number }) {
       </div>
     </aside>
   );
+}
+
+/** The number next to "Books". It streams in after the page frame, and shows a dash if the database fails. */
+async function BookCount() {
+  let total: number | null = null;
+  try {
+    const [row] = await getDb()
+      .select({ total: count() })
+      .from(books)
+      .where(isNull(books.deletedAt));
+    total = row?.total ?? 0;
+  } catch {
+    total = null;
+  }
+  return <>{total ?? '–'}</>;
 }
