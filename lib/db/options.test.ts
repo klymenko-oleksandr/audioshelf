@@ -3,8 +3,8 @@ import { clientOptions } from './options';
 
 describe('clientOptions', () => {
   it('never pipelines queries: through the Supabase pooler a second query sent before the first finished leaves the first hanging', () => {
-    expect(clientOptions(true).max_pipeline).toBe(1);
-    expect(clientOptions(false).max_pipeline).toBe(1);
+    expect(clientOptions(true).max_pipeline).toBe(0);
+    expect(clientOptions(false).max_pipeline).toBe(0);
   });
 
   it('does not use prepared statements (transaction pooler)', () => {

@@ -62,6 +62,7 @@ export function BooksToolbar({ query, counts, categories }: Props) {
           const active = query.tab === tab;
           return (
             <Link
+              prefetch={false}
               key={tab}
               href={buildBooksHref(query, { tab })}
               replace

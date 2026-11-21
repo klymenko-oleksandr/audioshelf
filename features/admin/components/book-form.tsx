@@ -141,7 +141,7 @@ export function BookForm({
   return (
     <form ref={formRef} onSubmit={onSubmit} noValidate aria-label={book ? 'Edit book' : 'New book'}>
       <header className="border-border flex h-16 shrink-0 items-center gap-3 border-b px-8">
-        <Link href="/admin/books" className="text-muted-foreground text-[13px]">
+        <Link prefetch={false} href="/admin/books" className="text-muted-foreground text-[13px]">
           Books
         </Link>
         <span aria-hidden className="text-muted-foreground">
@@ -159,6 +159,7 @@ export function BookForm({
         <div className="grow" />
         {book && status === 'published' && (
           <Link
+            prefetch={false}
             href={`/book/${book.slug}`}
             target="_blank"
             rel="noreferrer"

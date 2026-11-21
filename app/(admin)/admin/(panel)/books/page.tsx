@@ -12,7 +12,7 @@ import { getAdminBooks } from '@/features/admin/data/books';
 import { formatHours } from '@/features/admin/format';
 import { parseBooksQuery } from '@/features/admin/list-state';
 import { requireAdminSession } from '@/lib/auth/admin/guard';
-import { getDb } from '@/lib/db';
+import { readDb } from '@/lib/db';
 import { timed } from '@/lib/perf';
 
 export const metadata: Metadata = { title: 'Books' };
@@ -35,7 +35,7 @@ export default async function AdminBooksPage({
 
 async function BooksContent({ query }: { query: ReturnType<typeof parseBooksQuery> }) {
   const { rows, counts, totals, categories } = await timed('page.books-list', () =>
-    getAdminBooks(getDb(), query),
+    readDb('page.books-list', (db) => getAdminBooks(db, query)),
   );
   const filtered = Boolean(query.q || query.category || query.tab !== 'all');
 
@@ -45,7 +45,7 @@ async function BooksContent({ query }: { query: ReturnType<typeof parseBooksQuer
         title="Books"
         summary={`${totals.books} ${totals.books === 1 ? 'book' : 'books'} · ${formatHours(totals.seconds)} of audio`}
       >
-        <Link href="/admin/books/new" className={buttonVariants()}>
+        <Link prefetch={false} href="/admin/books/new" className={buttonVariants()}>
           <RiAddLine aria-hidden />
           New book
         </Link>

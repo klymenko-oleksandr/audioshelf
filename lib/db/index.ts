@@ -4,6 +4,7 @@ import { drizzle, type PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
 import * as schema from '@/db/schema';
 import { requireEnv } from '@/lib/env';
+import { withDeadline } from './deadline';
 import { isStale } from './freshness';
 import { clientOptions } from './options';
 
@@ -57,4 +58,19 @@ export function getDb(): Database {
   const fresh = open();
   globalForDb.__audioshelfDb = fresh;
   return fresh.db;
+}
+
+/** Closes the current connection right away (running queries are cut); the next `getDb()` opens a new one. */
+export function resetDb(): void {
+  const current = globalForDb.__audioshelfDb;
+  globalForDb.__audioshelfDb = undefined;
+  if (current) void current.client.end({ timeout: 0 }).catch(() => {});
+}
+
+/**
+ * Runs a read against the database with a deadline and one retry on a fresh connection
+ * (see `deadline.ts`). Use it for everything a page needs to render.
+ */
+export function readDb<T>(label: string, run: (db: Database) => Promise<T>): Promise<T> {
+  return withDeadline(label, run, { getHandle: getDb, reset: resetDb });
 }

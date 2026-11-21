@@ -83,6 +83,7 @@ export function BooksTable({ rows, now }: { rows: AdminBookRow[]; now: Date }) {
             </div>
             <div role="cell" className="flex min-w-0 flex-col gap-0.5">
               <Link
+                prefetch={false}
                 href={`/admin/books/${book.id}`}
                 className="truncate text-[13px] font-medium after:absolute after:inset-0 hover:underline"
               >
@@ -130,13 +131,14 @@ export function BooksEmpty({ filtered }: { filtered: boolean }) {
       </p>
       {filtered ? (
         <Link
+          prefetch={false}
           href={buildBooksHref({ tab: 'all', q: '', category: '', sort: 'updated' })}
           className={buttonVariants({ variant: 'outline' })}
         >
           Clear filters
         </Link>
       ) : (
-        <Link href="/admin/books/new" className={buttonVariants()}>
+        <Link prefetch={false} href="/admin/books/new" className={buttonVariants()}>
           New book
         </Link>
       )}
