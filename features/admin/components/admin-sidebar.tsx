@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { Suspense } from 'react';
 import { books } from '@/db/schema';
 import { getDb } from '@/lib/db';
+import { timed } from '@/lib/perf';
 import { signOut } from '@/app/(admin)/admin/login/actions';
 import { AdminNav } from './admin-nav';
 
@@ -57,10 +58,9 @@ export function AdminSidebar() {
 async function BookCount() {
   let total: number | null = null;
   try {
-    const [row] = await getDb()
-      .select({ total: count() })
-      .from(books)
-      .where(isNull(books.deletedAt));
+    const [row] = await timed('sidebar.book-count', () =>
+      getDb().select({ total: count() }).from(books).where(isNull(books.deletedAt)),
+    );
     total = row?.total ?? 0;
   } catch {
     total = null;

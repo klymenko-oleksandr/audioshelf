@@ -45,6 +45,10 @@ export function getDb(): Database {
     current.lastUsedAt = now;
     return current.db;
   }
+  const idleMs = current ? now - current.lastUsedAt : null;
+  console.info(
+    `[db] opening a connection (${idleMs === null ? 'first use' : `idle ${Math.round(idleMs / 1000)}s`}) region=${process.env.VERCEL_REGION ?? 'local'}`,
+  );
   if (current) {
     // Queries already running on the old connection finish first, then its sockets close.
     // (A timeout here would cut them off: it broke the books list on 22 Nov.)

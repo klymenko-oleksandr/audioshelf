@@ -13,6 +13,7 @@ import { formatHours } from '@/features/admin/format';
 import { parseBooksQuery } from '@/features/admin/list-state';
 import { requireAdminSession } from '@/lib/auth/admin/guard';
 import { getDb } from '@/lib/db';
+import { timed } from '@/lib/perf';
 
 export const metadata: Metadata = { title: 'Books' };
 
@@ -33,7 +34,9 @@ export default async function AdminBooksPage({
 }
 
 async function BooksContent({ query }: { query: ReturnType<typeof parseBooksQuery> }) {
-  const { rows, counts, totals, categories } = await getAdminBooks(getDb(), query);
+  const { rows, counts, totals, categories } = await timed('page.books-list', () =>
+    getAdminBooks(getDb(), query),
+  );
   const filtered = Boolean(query.q || query.category || query.tab !== 'all');
 
   return (
