@@ -4,6 +4,7 @@ import { drizzle, type PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
 import * as schema from '@/db/schema';
 import { requireEnv } from '@/lib/env';
+import { clientOptions } from './options';
 
 export type Database = PostgresJsDatabase<typeof schema>;
 
@@ -16,11 +17,10 @@ const globalForDb = globalThis as unknown as { __audioshelfDb?: Database };
  */
 export function getDb(): Database {
   if (!globalForDb.__audioshelfDb) {
-    const client = postgres(requireEnv('DATABASE_URL'), {
-      // Supabase's transaction pooler (port 6543) does not support prepared statements.
-      prepare: false,
-      max: process.env.NODE_ENV === 'production' ? 1 : 5,
-    });
+    const client = postgres(
+      requireEnv('DATABASE_URL'),
+      clientOptions(process.env.NODE_ENV === 'production'),
+    );
     globalForDb.__audioshelfDb = drizzle(client, { schema, casing: 'snake_case' });
   }
   return globalForDb.__audioshelfDb;
