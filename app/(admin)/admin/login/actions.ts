@@ -10,6 +10,7 @@ import { getDb } from '@/lib/db';
 export type LoginFormState =
   | { error: null }
   | { error: 'wrong'; attemptsLeft: number }
+  | { error: 'too_short' }
   | { error: 'locked'; retryAfterSeconds: number }
   | { error: 'unavailable' }
   | { error: 'misconfigured' };
@@ -46,6 +47,8 @@ export async function signIn(
     }
     case 'wrong':
       return { error: 'wrong', attemptsLeft: result.attemptsLeft };
+    case 'too_short':
+      return { error: 'too_short' };
     case 'locked':
       return { error: 'locked', retryAfterSeconds: result.retryAfterSeconds };
     case 'misconfigured':

@@ -90,6 +90,22 @@ test.describe('admin: signing in', () => {
     );
   });
 
+  test('a password under 8 characters says so, and does not use up an attempt', async ({
+    page,
+  }) => {
+    await page.goto('/admin/login');
+    await signIn(page, 'short');
+    await expect(page.locator('#admin-password-error')).toHaveText(
+      'The password must be at least 8 characters.',
+    );
+    await expect(page).toHaveURL(/\/admin\/login$/);
+
+    await signIn(page, 'not-the-password');
+    await expect(page.locator('#admin-password-error')).toHaveText(
+      'Wrong password. 4 attempts left before a 15-minute lock.',
+    );
+  });
+
   test('the password can be shown and hidden', async ({ page }) => {
     await page.goto('/admin/login');
     const field = page.getByLabel('Password', { exact: true });
@@ -128,13 +144,13 @@ test.describe('admin: signing in', () => {
     await strangerPage.goto('/admin/login');
     const strangerError = strangerPage.locator('#admin-password-error');
     for (const left of ['4 attempts', '3 attempts', '2 attempts', '1 attempt']) {
-      await strangerPage.getByLabel('Password', { exact: true }).fill('a-guess');
+      await strangerPage.getByLabel('Password', { exact: true }).fill('a-wrong-guess');
       await strangerPage.getByRole('button', { name: 'Sign in' }).click();
       await expect(strangerError).toHaveText(
         `Wrong password. ${left} left before a 15-minute lock.`,
       );
     }
-    await strangerPage.getByLabel('Password', { exact: true }).fill('a-guess');
+    await strangerPage.getByLabel('Password', { exact: true }).fill('a-wrong-guess');
     await strangerPage.getByRole('button', { name: 'Sign in' }).click();
     await expect(strangerPage.locator('#admin-password-error')).toHaveText(LOCK_TEXT);
     await stranger.close();

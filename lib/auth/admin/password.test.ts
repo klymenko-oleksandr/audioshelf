@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { randomBytes, scryptSync } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
-import { MIN_PASSWORD_LENGTH, verifyPassword } from './password';
+import { isLongEnough, MIN_PASSWORD_LENGTH, verifyPassword } from './password';
 
 /** Same recipe as the one-line command given to the owner (see .env.example). */
 function makeHash(password: string) {
@@ -58,5 +58,14 @@ describe('verifyPassword', () => {
 
   it('rejects an absurdly long password without hashing it', async () => {
     expect(await verifyPassword('a'.repeat(10_000), stored)).toBe(false);
+  });
+});
+
+describe('isLongEnough', () => {
+  it('needs the minimum length after NFKC normalisation', () => {
+    expect(isLongEnough('a'.repeat(MIN_PASSWORD_LENGTH))).toBe(true);
+    expect(isLongEnough('a'.repeat(MIN_PASSWORD_LENGTH - 1))).toBe(false);
+    expect(isLongEnough('')).toBe(false);
+    expect(isLongEnough('ａｂｃｄｅｆｇ')).toBe(false);
   });
 });
