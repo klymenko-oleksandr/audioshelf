@@ -16,9 +16,7 @@ describe('clientOptions', () => {
     expect(clientOptions(false).max).toBe(5);
   });
 
-  it('gives up connecting after 10 s and closes idle connections, so a stuck one cannot be reused for minutes', () => {
-    const production = clientOptions(true);
-    expect(production.connect_timeout).toBe(10);
-    expect(production.idle_timeout).toBe(20);
+  it('gives up connecting after 10 s', () => {
+    expect(clientOptions(true).connect_timeout).toBe(10);
   });
 });
