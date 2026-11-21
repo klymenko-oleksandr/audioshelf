@@ -1,10 +1,12 @@
 import { RiAddLine } from '@remixicon/react';
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { Suspense } from 'react';
 import { buttonVariants } from '@/components/ui/button';
 import { BooksKpis } from '@/features/admin/components/books-kpis';
 import { BooksEmpty, BooksTable } from '@/features/admin/components/books-table';
 import { BooksToolbar } from '@/features/admin/components/books-toolbar';
+import { PanelSkeleton } from '@/features/admin/components/panel-skeleton';
 import { PageHeader } from '@/features/admin/components/page-header';
 import { getAdminBooks } from '@/features/admin/data/books';
 import { formatHours } from '@/features/admin/format';
@@ -22,6 +24,15 @@ export default async function AdminBooksPage({
 }) {
   await requireAdminSession();
   const query = parseBooksQuery(await searchParams);
+  // A Suspense boundary here (not a loading.tsx) so unknown pages under /admin/books still answer 404.
+  return (
+    <Suspense key={JSON.stringify(query)} fallback={<PanelSkeleton />}>
+      <BooksContent query={query} />
+    </Suspense>
+  );
+}
+
+async function BooksContent({ query }: { query: ReturnType<typeof parseBooksQuery> }) {
   const { rows, counts, totals, categories } = await getAdminBooks(getDb(), query);
   const filtered = Boolean(query.q || query.category || query.tab !== 'all');
 
