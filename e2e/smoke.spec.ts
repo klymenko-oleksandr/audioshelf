@@ -1126,6 +1126,13 @@ test.describe('health', () => {
     const body = await response.json();
     expect(body).toMatchObject({ app: 'ok', db: 'ok' });
     expect(typeof body.dbMs).toBe('number');
-    expect(Object.keys(body).sort()).toEqual(['app', 'checkedAt', 'db', 'dbMs', 'version']);
+    expect(Object.keys(body).sort()).toEqual([
+      'app',
+      'checkedAt',
+      'db',
+      'dbMs',
+      'region',
+      'version',
+    ]);
   });
 });

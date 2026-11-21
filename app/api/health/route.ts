@@ -25,6 +25,7 @@ export async function GET() {
     {
       app: 'ok',
       ...health,
+      region: process.env.VERCEL_REGION ?? null,
       version: process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7) ?? null,
       checkedAt: new Date().toISOString(),
     },
