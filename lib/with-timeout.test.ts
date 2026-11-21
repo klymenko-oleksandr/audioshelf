@@ -8,7 +8,9 @@ describe('withTimeout', () => {
 
   it('rejects with the label when the work takes too long', async () => {
     const never = new Promise<number>(() => {});
-    await expect(withTimeout(never, 20, 'sign-in')).rejects.toThrow('sign-in timed out after 20 ms');
+    await expect(withTimeout(never, 20, 'sign-in')).rejects.toThrow(
+      'sign-in timed out after 20 ms',
+    );
   });
 
   it('passes the original error through', async () => {

@@ -1,6 +1,6 @@
 import { Skeleton } from '@/components/ui/skeleton';
 
-/** Shown while any admin page loads, so a slow database reads as "loading", not "broken". */
+/** Shown while a books page loads (not at the panel root: a loading file there would send status 200 before a not-found page can answer 404), so a slow database reads as "loading", not "broken". */
 export default function AdminLoading() {
   return (
     <div role="status" aria-label="Loading" className="flex flex-col">
