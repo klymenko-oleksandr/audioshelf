@@ -6,6 +6,7 @@ import * as schema from '@/db/schema';
 import { requireEnv } from '@/lib/env';
 import { withDeadline } from './deadline';
 import { isStale } from './freshness';
+import { serialise } from './serialise';
 import { clientOptions } from './options';
 
 export type Database = PostgresJsDatabase<typeof schema>;
@@ -21,13 +22,15 @@ const globalForDb = globalThis as unknown as { __audioshelfDb?: Holder };
 
 function open(): Holder {
   const holder = {} as Holder;
-  holder.client = postgres(requireEnv('DATABASE_URL'), {
-    ...clientOptions(process.env.NODE_ENV === 'production'),
-    // Every query the driver sends counts as use, so a slow page keeps its connection.
-    debug: () => {
-      holder.lastUsedAt = Date.now();
-    },
-  });
+  holder.client = serialise(
+    postgres(requireEnv('DATABASE_URL'), {
+      ...clientOptions(process.env.NODE_ENV === 'production'),
+      // Every query the driver sends counts as use, so a slow page keeps its connection.
+      debug: () => {
+        holder.lastUsedAt = Date.now();
+      },
+    }),
+  );
   holder.db = drizzle(holder.client, { schema, casing: 'snake_case' });
   holder.lastUsedAt = Date.now();
   return holder;
