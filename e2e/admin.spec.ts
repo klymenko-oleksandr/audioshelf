@@ -1,21 +1,11 @@
 import { expect, test, type Page } from '@playwright/test';
-import { ADMIN_PASSWORD } from './fixtures/admin';
+import { ADMIN_SETUP_TOKEN, addVirtualPasskey, signInWithPasskey } from './fixtures/admin';
 
 const DESKTOP = { width: 1440, height: 1024 };
-const LOCK_TEXT = 'Too many wrong passwords. Try again in 15 minutes.';
+const SIGN_IN = 'Sign in with passkey';
 
-let counter = 0;
-/** Every test signs in from its own made-up address, so lockouts never leak between tests. */
 async function asVisitor(page: Page) {
-  counter += 1;
-  const ip = `198.51.${test.info().workerIndex}.${(counter % 200) + 1}`;
-  await page.setExtraHTTPHeaders({ 'x-forwarded-for': `${ip}-${test.info().testId}`.slice(0, 60) });
   await page.setViewportSize(DESKTOP);
-}
-
-async function signIn(page: Page, password: string) {
-  await page.getByLabel('Password', { exact: true }).fill(password);
-  await page.getByRole('button', { name: 'Sign in' }).click();
 }
 
 test.describe('admin: signed out', () => {
@@ -29,7 +19,8 @@ test.describe('admin: signed out', () => {
     await expect(page).toHaveURL(/\/admin\/login\?next=%2Fadmin%2Fbooks%3Ftab%3Ddraft$/);
     await expect(page.getByRole('heading', { name: 'Sign in to admin' })).toBeVisible();
 
-    await signIn(page, ADMIN_PASSWORD);
+    await addVirtualPasskey(page);
+    await page.getByRole('button', { name: SIGN_IN }).click();
     await expect(page).toHaveURL(/\/admin\/books\?tab=draft$/);
     await expect(page.getByRole('heading', { level: 1, name: 'Books' })).toBeVisible();
   });
@@ -42,16 +33,13 @@ test.describe('admin: signed out', () => {
   });
 
   test('the admin API answers 401 without a session', async ({ request }) => {
-    const response = await request.get('/api/admin/books', {
-      headers: { 'x-forwarded-for': '203.0.113.200' },
-    });
+    const response = await request.get('/api/admin/books');
     expect(response.status()).toBe(401);
     expect(await response.json()).toEqual({ error: 'unauthorized' });
   });
 
   test('a link outside the admin panel cannot be used as the return address', async ({ page }) => {
-    await page.goto('/admin/login?next=https://evil.example/');
-    await signIn(page, ADMIN_PASSWORD);
+    await signInWithPasskey(page, '/admin/login?next=https://evil.example/');
     await expect(page).toHaveURL(/\/admin\/books$/);
   });
 
@@ -74,108 +62,63 @@ test.describe('admin: signing in', () => {
   test.use({ locale: 'en-US' });
   test.beforeEach(async ({ page }) => asVisitor(page));
 
-  test('a wrong password says how many attempts are left and keeps the person on the form', async ({
+  test('a passkey the server does not know is refused and the person stays on the form', async ({
     page,
   }) => {
+    await addVirtualPasskey(page, 'stranger');
     await page.goto('/admin/login');
-    await signIn(page, 'not-the-password');
-    await expect(page.locator('#admin-password-error')).toHaveText(
-      'Wrong password. 4 attempts left before a 15-minute lock.',
-    );
-    await expect(page).toHaveURL(/\/admin\/login$/);
-
-    await signIn(page, 'still-not-the-password');
-    await expect(page.locator('#admin-password-error')).toHaveText(
-      'Wrong password. 3 attempts left before a 15-minute lock.',
-    );
-  });
-
-  test('a password under 8 characters says so, and does not use up an attempt', async ({
-    page,
-  }) => {
-    await page.goto('/admin/login');
-    await signIn(page, 'short');
-    await expect(page.locator('#admin-password-error')).toHaveText(
-      'The password must be at least 8 characters.',
-    );
-    await expect(page).toHaveURL(/\/admin\/login$/);
-
-    await signIn(page, 'not-the-password');
-    await expect(page.locator('#admin-password-error')).toHaveText(
-      'Wrong password. 4 attempts left before a 15-minute lock.',
-    );
-  });
-
-  test('the password can be shown and hidden', async ({ page }) => {
-    await page.goto('/admin/login');
-    const field = page.getByLabel('Password', { exact: true });
-    await expect(field).toHaveAttribute('type', 'password');
-    await page.getByRole('button', { name: 'Show password' }).click();
-    await expect(field).toHaveAttribute('type', 'text');
-    await page.getByRole('button', { name: 'Hide password' }).click();
-    await expect(field).toHaveAttribute('type', 'password');
-  });
-
-  test('five wrong passwords lock the address, even for the right password', async ({ page }) => {
-    await page.goto('/admin/login');
-    for (const left of ['4 attempts', '3 attempts', '2 attempts', '1 attempt']) {
-      await signIn(page, 'wrong-password');
-      await expect(page.locator('#admin-password-error')).toHaveText(
-        `Wrong password. ${left} left before a 15-minute lock.`,
-      );
-    }
-    await signIn(page, 'wrong-password');
-    await expect(page.locator('#admin-password-error')).toHaveText(LOCK_TEXT);
-
-    // The right password is refused while locked.
-    await signIn(page, ADMIN_PASSWORD);
-    await expect(page.locator('#admin-password-error')).toHaveText(LOCK_TEXT);
+    await page.getByRole('button', { name: SIGN_IN }).click();
+    await expect(page.locator('main [role="alert"]')).toHaveText('That passkey was not accepted.');
     await expect(page).toHaveURL(/\/admin\/login$/);
     await page.goto('/admin/books');
     await expect(page).toHaveURL(/\/admin\/login/);
   });
 
-  test("someone else's wrong guesses do not lock the owner out", async ({ page, browser }) => {
-    // A stranger on another address burns all their attempts…
-    const stranger = await browser.newContext({
-      extraHTTPHeaders: { 'x-forwarded-for': `203.0.113.${test.info().workerIndex}-stranger` },
+  test('without a passkey on the device, the prompt ends quietly and nothing is signed in', async ({
+    page,
+  }) => {
+    // A virtual authenticator with no credential: the browser has nothing to offer.
+    const cdp = await page.context().newCDPSession(page);
+    await cdp.send('WebAuthn.enable');
+    await cdp.send('WebAuthn.addVirtualAuthenticator', {
+      options: {
+        protocol: 'ctap2',
+        transport: 'internal',
+        hasResidentKey: true,
+        hasUserVerification: true,
+        isUserVerified: true,
+        automaticPresenceSimulation: true,
+      },
     });
-    const strangerPage = await stranger.newPage();
-    await strangerPage.goto('/admin/login');
-    const strangerError = strangerPage.locator('#admin-password-error');
-    for (const left of ['4 attempts', '3 attempts', '2 attempts', '1 attempt']) {
-      await strangerPage.getByLabel('Password', { exact: true }).fill('a-wrong-guess');
-      await strangerPage.getByRole('button', { name: 'Sign in' }).click();
-      await expect(strangerError).toHaveText(
-        `Wrong password. ${left} left before a 15-minute lock.`,
-      );
-    }
-    await strangerPage.getByLabel('Password', { exact: true }).fill('a-wrong-guess');
-    await strangerPage.getByRole('button', { name: 'Sign in' }).click();
-    await expect(strangerPage.locator('#admin-password-error')).toHaveText(LOCK_TEXT);
-    await stranger.close();
-
-    // …and the owner signs in without any wait.
     await page.goto('/admin/login');
-    await signIn(page, ADMIN_PASSWORD);
-    await expect(page.getByRole('heading', { level: 1, name: 'Books' })).toBeVisible();
+    await page.getByRole('button', { name: SIGN_IN }).click();
+    await expect(page.locator('main [role="alert"]')).toHaveText(
+      'The passkey prompt was closed. Try again when you are ready.',
+    );
+    await expect(page).toHaveURL(/\/admin\/login$/);
+  });
+
+  test('there is no password field and no attempt counter to attack', async ({ page }) => {
+    await page.goto('/admin/login');
+    await expect(page.getByLabel('Password')).toHaveCount(0);
+    await expect(page.locator('input')).toHaveCount(0);
   });
 
   test('the session cookie is httpOnly and ends with the browser session', async ({
     page,
     context,
   }) => {
-    await page.goto('/admin/login');
-    await signIn(page, ADMIN_PASSWORD);
+    await signInWithPasskey(page);
     await expect(page).toHaveURL(/\/admin\/books$/);
     const cookie = (await context.cookies()).find((c) => c.name === 'admin_session');
     expect(cookie).toMatchObject({ httpOnly: true, sameSite: 'Lax', path: '/' });
     expect(cookie?.expires).toBe(-1);
+    // The one-time challenge is gone once it has been answered.
+    expect((await context.cookies()).find((c) => c.name === 'admin_challenge')).toBeUndefined();
   });
 
   test('signing out ends the session', async ({ page }) => {
-    await page.goto('/admin/login');
-    await signIn(page, ADMIN_PASSWORD);
+    await signInWithPasskey(page);
     await expect(page).toHaveURL(/\/admin\/books$/);
 
     await page.getByRole('button', { name: 'Sign out' }).click();
@@ -185,11 +128,52 @@ test.describe('admin: signing in', () => {
   });
 
   test('a signed-in owner opening the login page lands on the books list', async ({ page }) => {
-    await page.goto('/admin/login');
-    await signIn(page, ADMIN_PASSWORD);
+    await signInWithPasskey(page);
     await expect(page).toHaveURL(/\/admin\/books$/);
     await page.goto('/admin/login');
     await expect(page).toHaveURL(/\/admin\/books$/);
+  });
+});
+
+test.describe('admin: adding a passkey', () => {
+  test.use({ locale: 'en-US' });
+  test.beforeEach(async ({ page }) => asVisitor(page));
+
+  test('a wrong setup token is refused', async ({ page }) => {
+    await addVirtualPasskey(page);
+    await page.goto('/admin/login/setup');
+    await page.getByLabel('Setup token').fill('not-the-token-not-the-token-not-the-token');
+    await page.getByRole('button', { name: 'Create passkey' }).click();
+    await expect(page.locator('main [role="alert"]')).toHaveText('That setup token is not right.');
+  });
+
+  test('the right token makes a passkey and prints the entry for ADMIN_PASSKEYS', async ({
+    page,
+  }) => {
+    // An empty authenticator on this page: the new passkey is created in it.
+    const cdp = await page.context().newCDPSession(page);
+    await cdp.send('WebAuthn.enable');
+    await cdp.send('WebAuthn.addVirtualAuthenticator', {
+      options: {
+        protocol: 'ctap2',
+        transport: 'internal',
+        hasResidentKey: true,
+        hasUserVerification: true,
+        isUserVerified: true,
+        automaticPresenceSimulation: true,
+      },
+    });
+    await page.goto(`/admin/login/setup?token=${ADMIN_SETUP_TOKEN}`);
+    await page.getByLabel('Name (optional)').fill('Test laptop');
+    await page.getByRole('button', { name: 'Create passkey' }).click();
+
+    const entry = JSON.parse(await page.getByLabel('Passkey entry').inputValue());
+    expect(entry).toMatchObject({ label: 'Test laptop' });
+    expect(entry.id).toMatch(/^[A-Za-z0-9_-]+$/);
+    expect(entry.publicKey).toMatch(/^[A-Za-z0-9_-]+$/);
+    // Setting it up signs nobody in.
+    await page.goto('/admin/books');
+    await expect(page).toHaveURL(/\/admin\/login/);
   });
 });
 
@@ -197,9 +181,8 @@ test.describe('admin: books list', () => {
   test.use({ locale: 'en-US' });
 
   test.beforeEach(async ({ page }) => {
-    await asVisitor(page);
-    await page.goto('/admin/login');
-    await signIn(page, ADMIN_PASSWORD);
+    await page.setViewportSize(DESKTOP);
+    await signInWithPasskey(page);
     await expect(page.getByRole('heading', { level: 1, name: 'Books' })).toBeVisible();
   });
 

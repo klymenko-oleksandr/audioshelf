@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { ADMIN_PASSWORD } from './fixtures/admin';
+import { signInWithPasskey } from './fixtures/admin';
 import { E2E_PREFIX, TARGETS_DEPLOYMENT, removeE2eRecords } from './fixtures/e2e-records';
 
 // Creates records, so it never runs against a deployed site, and it cleans up after itself.
@@ -14,12 +14,7 @@ let counter = 0;
 const title = (name: string) => `${E2E_PREFIX}${name} ${Date.now().toString(36)}${counter++}`;
 
 async function signIn(page: Page) {
-  // Every test signs in from its own made-up address, so lockouts never leak between tests.
-  const ip = `198.19.${test.info().workerIndex}.${(counter++ % 200) + 1}`;
-  await page.setExtraHTTPHeaders({ 'x-forwarded-for': `${ip}-${test.info().testId}`.slice(0, 60) });
-  await page.goto('/admin/login');
-  await page.getByLabel('Password', { exact: true }).fill(ADMIN_PASSWORD);
-  await page.getByRole('button', { name: 'Sign in' }).click();
+  await signInWithPasskey(page);
   await expect(page).toHaveURL(/\/admin\/books$/);
 }
 
