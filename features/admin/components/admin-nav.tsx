@@ -8,6 +8,7 @@ import {
   type RemixiconComponentType,
 } from '@remixicon/react';
 import Link from 'next/link';
+import type { ReactNode } from 'react';
 import { usePathname } from 'next/navigation';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
@@ -45,7 +46,7 @@ function isActive(pathname: string, item: Item) {
 }
 
 /** The sidebar menu (canvas: AdminBooks). */
-export function AdminNav({ bookCount }: { bookCount: number }) {
+export function AdminNav({ bookCount }: { bookCount: ReactNode }) {
   const pathname = usePathname();
 
   return (

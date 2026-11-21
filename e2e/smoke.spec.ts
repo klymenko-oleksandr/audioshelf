@@ -1117,3 +1117,15 @@ test.describe('catalogue', () => {
     expect((await (await request.get('/api/catalogue/books')).json()).books).toEqual([]);
   });
 });
+
+test.describe('health', () => {
+  test('/api/health is public, never cached, and reports the database', async ({ request }) => {
+    const response = await request.get('/api/health');
+    expect(response.status()).toBe(200);
+    expect(response.headers()['cache-control']).toContain('no-store');
+    const body = await response.json();
+    expect(body).toMatchObject({ app: 'ok', db: 'ok' });
+    expect(typeof body.dbMs).toBe('number');
+    expect(Object.keys(body).sort()).toEqual(['app', 'checkedAt', 'db', 'dbMs', 'version']);
+  });
+});
