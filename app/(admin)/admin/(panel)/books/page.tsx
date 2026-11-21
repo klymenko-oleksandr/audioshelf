@@ -26,7 +26,7 @@ export default async function AdminBooksPage({
   const query = parseBooksQuery(await searchParams);
   // A Suspense boundary here (not a loading.tsx) so unknown pages under /admin/books still answer 404.
   return (
-    <Suspense key={JSON.stringify(query)} fallback={<PanelSkeleton />}>
+    <Suspense fallback={<PanelSkeleton />}>
       <BooksContent query={query} />
     </Suspense>
   );
