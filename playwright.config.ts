@@ -17,7 +17,21 @@ export default defineConfig({
     // PW_CHANNEL=chrome uses the locally installed Chrome instead of the bundled Chromium.
     channel: process.env.PW_CHANNEL || undefined,
   },
-  projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
+  projects: [
+    {
+      name: 'chromium',
+      use: { ...devices['Desktop Chrome'] },
+      // Tests that create records run after everything else (below): the read-only specs assert
+      // exact counts of the seeded catalogue.
+      testIgnore: /\.write\.spec\.ts$/,
+    },
+    {
+      name: 'chromium-write',
+      use: { ...devices['Desktop Chrome'] },
+      testMatch: /\.write\.spec\.ts$/,
+      dependencies: ['chromium'],
+    },
+  ],
   // Skipped when PLAYWRIGHT_BASE_URL points at an already running deployment.
   webServer: process.env.PLAYWRIGHT_BASE_URL
     ? undefined
