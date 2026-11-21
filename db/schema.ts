@@ -170,6 +170,8 @@ export const tracks = pgTable(
       .references(() => books.id, { onDelete: 'cascade' }),
     /** Order within the book, from 1. Not unique, so a reorder needs no juggling. */
     position: integer().notNull(),
+    /** What the admin sees for this file in the track list; chapters are named separately. */
+    title: text().notNull().default(''),
     r2Key: text().notNull(),
     /** 'audio/mpeg' or 'audio/mp4' (ADR 3). */
     mimeType: text().notNull().default('audio/mpeg'),
