@@ -5,6 +5,7 @@ import { useActionState, useState } from 'react';
 import { signIn, type LoginFormState } from '@/app/(admin)/admin/login/actions';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { MIN_PASSWORD_LENGTH } from '@/lib/auth/admin/min-length';
 
 function minutes(seconds: number) {
   const m = Math.max(1, Math.ceil(seconds / 60));
@@ -20,6 +21,8 @@ export function loginErrorText(state: LoginFormState): string | null {
       return state.attemptsLeft === 1
         ? 'Wrong password. 1 attempt left before a 15-minute lock.'
         : `Wrong password. ${state.attemptsLeft} attempts left before a 15-minute lock.`;
+    case 'too_short':
+      return `The password must be at least ${MIN_PASSWORD_LENGTH} characters.`;
     case 'locked':
       return `Too many wrong passwords. Try again in ${minutes(state.retryAfterSeconds)}.`;
     case 'unavailable':
@@ -35,7 +38,7 @@ export function LoginForm({ next }: { next: string }) {
   });
   const [visible, setVisible] = useState(false);
   const message = loginErrorText(state);
-  const invalid = state.error === 'wrong';
+  const invalid = state.error === 'wrong' || state.error === 'too_short';
 
   return (
     <form

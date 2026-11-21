@@ -1,6 +1,6 @@
 import { clearAttempts, purgeOldAttempts, reserveLoginAttempt, type AuthDb } from './attempts';
 import { attemptKey, clientIp } from './client-ip';
-import { parsePasswordHash, verifyPassword } from './password';
+import { isLongEnough, parsePasswordHash, verifyPassword } from './password';
 import { createSessionToken, isSessionSecretValid } from './session';
 
 export interface LoginEnv {
@@ -13,6 +13,8 @@ export interface LoginEnv {
 export type LoginResult =
   | { status: 'ok'; token: string }
   | { status: 'wrong'; attemptsLeft: number }
+  /** Shorter than the minimum: said so plainly, and no attempt is counted. */
+  | { status: 'too_short' }
   | { status: 'locked'; retryAfterSeconds: number }
   /** The server's environment is wrong; nobody can sign in until it is fixed. */
   | { status: 'misconfigured' };
@@ -39,6 +41,9 @@ export async function attemptLogin(input: {
   if (!parsePasswordHash(env.passwordHash) || !isSessionSecretValid(env.sessionSecret)) {
     return { status: 'misconfigured' };
   }
+
+  // The minimum length is public, so naming it leaks nothing, and a typo that short is not a guess.
+  if (!isLongEnough(password)) return { status: 'too_short' };
 
   const key = attemptKey(clientIp(headers), env.sessionSecret!);
   const reservation = await reserveLoginAttempt(db, key, now);

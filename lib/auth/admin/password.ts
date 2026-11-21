@@ -1,5 +1,8 @@
 import { scrypt, timingSafeEqual } from 'node:crypto';
 import { promisify } from 'node:util';
+import { MIN_PASSWORD_LENGTH } from './min-length';
+
+export { MIN_PASSWORD_LENGTH };
 
 const scryptAsync = promisify(scrypt) as (
   password: string,
@@ -7,8 +10,6 @@ const scryptAsync = promisify(scrypt) as (
   keyLength: number,
 ) => Promise<Buffer>;
 
-/** A shorter password is refused at login whatever the stored hash says. */
-export const MIN_PASSWORD_LENGTH = 8;
 /** Longer input is refused before hashing, so it cannot be used to burn server time. */
 const MAX_PASSWORD_LENGTH = 256;
 const KEY_LENGTH = 64;
@@ -37,6 +38,11 @@ export function parsePasswordHash(stored: string | undefined): ParsedPasswordHas
   return { salt, hash };
 }
 
+/** Whether a typed password reaches the minimum length (after the same NFKC step as the check). */
+export function isLongEnough(password: string): boolean {
+  return typeof password === 'string' && password.normalize('NFKC').length >= MIN_PASSWORD_LENGTH;
+}
+
 /**
  * Checks a typed password against the stored hash in constant time. Never throws: anything
  * wrong with the input or the stored value is simply "no".
@@ -50,7 +56,7 @@ export async function verifyPassword(
   if (typeof password !== 'string' || password.length > MAX_PASSWORD_LENGTH) return false;
   // NFKC so the same text typed on another keyboard or OS compares equal.
   const normalized = password.normalize('NFKC');
-  if (normalized.length < MIN_PASSWORD_LENGTH) return false;
+  if (!isLongEnough(normalized)) return false;
   const actual = await scryptAsync(normalized, parsed.salt, KEY_LENGTH);
   return timingSafeEqual(actual, parsed.hash);
 }

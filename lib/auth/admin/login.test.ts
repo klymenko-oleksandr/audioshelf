@@ -50,6 +50,27 @@ describe('attemptLogin', () => {
     expect(await login('nope-nope-nope')).toEqual({ status: 'wrong', attemptsLeft: 3 });
   });
 
+  it('says the password is too short, without counting an attempt', async () => {
+    for (let i = 0; i < 7; i += 1) {
+      expect(await login('short')).toEqual({ status: 'too_short' });
+    }
+    // Still five tries left for real guesses, and the right password still works.
+    expect(await login('nope-nope-nope')).toEqual({ status: 'wrong', attemptsLeft: 4 });
+    expect((await login(PASSWORD)).status).toBe('ok');
+  });
+
+  it('counts length after NFKC normalisation, like the password check', async () => {
+    // Seven full-width letters normalise to seven characters: still too short.
+    expect(await login('ａｂｃｄｅｆｇ')).toEqual({ status: 'too_short' });
+  });
+
+  it('answers a locked address with the lock, not the length hint, for a long wrong password', async () => {
+    for (let i = 0; i < 5; i += 1) await login('nope-nope-nope', '203.0.113.7', at(i * 1000));
+    expect(await login('nope-nope-nope', '203.0.113.7', at(9000))).toMatchObject({
+      status: 'locked',
+    });
+  });
+
   it('locks the address after five wrong passwords, with the time to wait', async () => {
     for (let i = 0; i < 4; i += 1) await login('nope-nope-nope', '203.0.113.7', at(i * 1000));
     const fifth = await login('nope-nope-nope', '203.0.113.7', at(4000));
@@ -82,8 +103,8 @@ describe('attemptLogin', () => {
     expect((await login(PASSWORD, '203.0.113.7', at(5000))).status).toBe('ok');
   });
 
-  it('rejects an empty password and counts it as an attempt', async () => {
-    expect(await login('')).toEqual({ status: 'wrong', attemptsLeft: 4 });
+  it('rejects an empty password as too short', async () => {
+    expect(await login('')).toEqual({ status: 'too_short' });
   });
 
   it.each([
@@ -99,6 +120,6 @@ describe('attemptLogin', () => {
 
   it('does not sign in when the hash is the hash of an empty password', async () => {
     const emptyHash = { passwordHash: makeHash(''), sessionSecret: SECRET };
-    expect((await login('', '203.0.113.7', NOW, emptyHash)).status).toBe('wrong');
+    expect((await login('', '203.0.113.7', NOW, emptyHash)).status).toBe('too_short');
   });
 });
