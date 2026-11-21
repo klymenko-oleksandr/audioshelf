@@ -37,6 +37,12 @@ describe('proxy: signed out', () => {
     expect(await res.json()).toEqual({ error: 'unauthorized' });
   });
 
+  it('lets the passkey setup page through: it has its own one-time token', async () => {
+    const res = await call('/admin/login/setup?token=abc');
+    expect(res.status).toBe(200);
+    expect(res.headers.get('cache-control')).toBe('private, no-store, max-age=0');
+  });
+
   it('lets the login page through', async () => {
     const res = await call('/admin/login');
     expect(res.status).toBe(200);

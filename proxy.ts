@@ -20,6 +20,8 @@ export async function proxy(request: NextRequest) {
   let response: NextResponse | undefined;
   if (pathname.startsWith('/api/admin')) {
     if (!session) response = NextResponse.json({ error: 'unauthorized' }, { status: 401 });
+  } else if (pathname.startsWith(`${LOGIN_PATH}/`)) {
+    // /admin/login/setup: adding a passkey, protected by its own one-time token, not by a session.
   } else if (pathname === LOGIN_PATH) {
     if (session) response = NextResponse.redirect(new URL(DEFAULT_ADMIN_PATH, request.url));
   } else if (!session) {

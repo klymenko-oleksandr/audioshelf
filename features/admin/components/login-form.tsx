@@ -1,52 +1,67 @@
 'use client';
 
-import { RiArrowRightLine, RiErrorWarningLine, RiEyeLine, RiEyeOffLine } from '@remixicon/react';
-import { useActionState, useState } from 'react';
-import { signIn, type LoginFormState } from '@/app/(admin)/admin/login/actions';
+import { RiErrorWarningLine, RiFingerprintLine } from '@remixicon/react';
+import { browserSupportsWebAuthn, startAuthentication } from '@simplewebauthn/browser';
+import { useState } from 'react';
+import { beginPasskeyLogin, finishPasskeyLogin } from '@/app/(admin)/admin/login/actions';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { MIN_PASSWORD_LENGTH } from '@/lib/auth/admin/min-length';
 
-function minutes(seconds: number) {
-  const m = Math.max(1, Math.ceil(seconds / 60));
-  return m === 1 ? '1 minute' : `${m} minutes`;
-}
+export type LoginError =
+  'cancelled' | 'rejected' | 'expired' | 'unsupported' | 'unavailable' | 'misconfigured';
 
-/** The text under the field for each way a sign-in can fail (canvas: AdminLogin, wrong password). */
-export function loginErrorText(state: LoginFormState): string | null {
-  switch (state.error) {
+/** The text under the button for each way a sign-in can fail. */
+export function loginErrorText(error: LoginError | null): string | null {
+  switch (error) {
     case null:
       return null;
-    case 'wrong':
-      return state.attemptsLeft === 1
-        ? 'Wrong password. 1 attempt left before a 15-minute lock.'
-        : `Wrong password. ${state.attemptsLeft} attempts left before a 15-minute lock.`;
-    case 'too_short':
-      return `The password must be at least ${MIN_PASSWORD_LENGTH} characters.`;
-    case 'locked':
-      return `Too many wrong passwords. Try again in ${minutes(state.retryAfterSeconds)}.`;
+    case 'cancelled':
+      return 'The passkey prompt was closed. Try again when you are ready.';
+    case 'rejected':
+      return 'That passkey was not accepted.';
+    case 'expired':
+      return 'The sign-in took too long. Try again.';
+    case 'unsupported':
+      return 'This browser does not support passkeys.';
     case 'unavailable':
       return 'Sign-in is not available right now. Try again in a moment.';
     case 'misconfigured':
-      return 'Admin sign-in is not set up on this server.';
+      return 'No passkey is set up on this server yet.';
   }
 }
 
+/** A closed or timed-out system prompt is not an error worth alarming anyone about. */
+const isCancel = (error: unknown) =>
+  error instanceof Error && (error.name === 'NotAllowedError' || error.name === 'AbortError');
+
 export function LoginForm({ next }: { next: string }) {
-  const [state, action, pending] = useActionState<LoginFormState, FormData>(signIn, {
-    error: null,
-  });
-  const [visible, setVisible] = useState(false);
-  const message = loginErrorText(state);
-  const invalid = state.error === 'wrong' || state.error === 'too_short';
+  const [error, setError] = useState<LoginError | null>(null);
+  const [pending, setPending] = useState(false);
+  const message = loginErrorText(error);
+
+  async function signIn() {
+    setError(null);
+    if (!browserSupportsWebAuthn()) return setError('unsupported');
+    setPending(true);
+    try {
+      const begun = await beginPasskeyLogin();
+      if (!begun.ok) return setError(begun.error);
+      const response = await startAuthentication({ optionsJSON: begun.options });
+      const finished = await finishPasskeyLogin(response, next);
+      if (!finished.ok) return setError(finished.error);
+      // A full navigation: the new cookie must be sent with the very next request.
+      window.location.assign(finished.next);
+    } catch (caught) {
+      setError(isCancel(caught) ? 'cancelled' : 'unavailable');
+    } finally {
+      setPending(false);
+    }
+  }
 
   return (
-    <form
-      action={action}
+    <section
       aria-labelledby="login-title"
       className="bg-card border-border flex w-full flex-col gap-4 rounded-xl border p-7 shadow-sm"
     >
-      <input type="hidden" name="next" value={next} />
       <div className="flex flex-col gap-1">
         <h1
           id="login-title"
@@ -55,54 +70,28 @@ export function LoginForm({ next }: { next: string }) {
           Sign in to admin
         </h1>
         <p className="text-muted-foreground text-[13px] leading-5">
-          Enter the admin password to manage books and categories.
+          Use your passkey (Touch ID, phone or security key) to manage books and categories.
         </p>
       </div>
 
-      <div className="flex flex-col gap-2">
-        <label htmlFor="admin-password" className="text-[13px] leading-none font-medium">
-          Password
-        </label>
-        <div className="relative flex">
-          <Input
-            id="admin-password"
-            name="password"
-            type={visible ? 'text' : 'password'}
-            autoComplete="current-password"
-            autoFocus
-            required
-            aria-invalid={invalid || undefined}
-            aria-describedby={message ? 'admin-password-error' : undefined}
-            className="pr-10"
-          />
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            aria-label={visible ? 'Hide password' : 'Show password'}
-            aria-pressed={visible}
-            onClick={() => setVisible((v) => !v)}
-            className="absolute top-0 right-0.5 h-9"
-          >
-            {visible ? <RiEyeOffLine aria-hidden /> : <RiEyeLine aria-hidden />}
-          </Button>
-        </div>
-        {message && (
-          <span
-            id="admin-password-error"
-            role="alert"
-            className="text-destructive flex items-start gap-1.5 text-xs"
-          >
-            <RiErrorWarningLine size={14} aria-hidden className="mt-px shrink-0" />
-            {message}
-          </span>
-        )}
-      </div>
-
-      <Button type="submit" size="lg" disabled={pending} className="justify-center gap-1.5">
-        {pending ? 'Signing in…' : 'Sign in'}
-        {!pending && <RiArrowRightLine aria-hidden />}
+      <Button
+        type="button"
+        size="lg"
+        autoFocus
+        disabled={pending}
+        onClick={signIn}
+        className="justify-center gap-1.5"
+      >
+        <RiFingerprintLine aria-hidden />
+        {pending ? 'Waiting for your passkey…' : 'Sign in with passkey'}
       </Button>
-    </form>
+
+      {message && (
+        <span role="alert" className="text-destructive flex items-start gap-1.5 text-xs">
+          <RiErrorWarningLine size={14} aria-hidden className="mt-px shrink-0" />
+          {message}
+        </span>
+      )}
+    </section>
   );
 }
