@@ -19,15 +19,17 @@ type Holder = {
 const globalForDb = globalThis as unknown as { __audioshelfDb?: Holder };
 
 function open(): Holder {
-  const client = postgres(
-    requireEnv('DATABASE_URL'),
-    clientOptions(process.env.NODE_ENV === 'production'),
-  );
-  return {
-    client,
-    db: drizzle(client, { schema, casing: 'snake_case' }),
-    lastUsedAt: Date.now(),
-  };
+  const holder = {} as Holder;
+  holder.client = postgres(requireEnv('DATABASE_URL'), {
+    ...clientOptions(process.env.NODE_ENV === 'production'),
+    // Every query the driver sends counts as use, so a slow page keeps its connection.
+    debug: () => {
+      holder.lastUsedAt = Date.now();
+    },
+  });
+  holder.db = drizzle(holder.client, { schema, casing: 'snake_case' });
+  holder.lastUsedAt = Date.now();
+  return holder;
 }
 
 /**
@@ -44,8 +46,9 @@ export function getDb(): Database {
     return current.db;
   }
   if (current) {
-    // Let queries already running finish (up to 5 s), then drop the old sockets.
-    void current.client.end({ timeout: 5 }).catch(() => {});
+    // Queries already running on the old connection finish first, then its sockets close.
+    // (A timeout here would cut them off: it broke the books list on 22 Nov.)
+    void current.client.end().catch(() => {});
   }
   const fresh = open();
   globalForDb.__audioshelfDb = fresh;
