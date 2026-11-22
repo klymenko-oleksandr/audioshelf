@@ -1,7 +1,9 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
+import { AudioTracksCard } from '@/features/admin/components/audio-tracks-card';
 import { BookForm } from '@/features/admin/components/book-form';
 import { getBookForEdit, getBookFormOptions } from '@/features/admin/data/book-form';
+import { getBookTracks } from '@/features/admin/tracks/data';
 import { requireAdminSession } from '@/lib/auth/admin/guard';
 import { readDb } from '@/lib/db';
 import { timed } from '@/lib/perf';
@@ -18,10 +20,20 @@ export default async function EditBookPage({
 }) {
   await requireAdminSession();
   const [{ id }, query] = await Promise.all([params, searchParams]);
-  const [book, options] = await timed('page.book-edit', () =>
-    readDb('page.book-edit', (db) => Promise.all([getBookForEdit(db, id), getBookFormOptions(db)])),
+  const [book, options, tracks] = await timed('page.book-edit', () =>
+    readDb('page.book-edit', (db) =>
+      Promise.all([getBookForEdit(db, id), getBookFormOptions(db), getBookTracks(db, id)]),
+    ),
   );
   if (!book) notFound();
 
-  return <BookForm key={book.id} book={book} options={options} created={query.created === '1'} />;
+  return (
+    <BookForm
+      key={book.id}
+      book={book}
+      options={options}
+      created={query.created === '1'}
+      tracks={<AudioTracksCard bookId={book.id} bookStatus={book.status} initial={tracks} />}
+    />
+  );
 }
