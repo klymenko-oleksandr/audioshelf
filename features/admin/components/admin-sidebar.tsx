@@ -3,7 +3,7 @@ import { count, isNull } from 'drizzle-orm';
 import Link from 'next/link';
 import { Suspense } from 'react';
 import { books } from '@/db/schema';
-import { getDb } from '@/lib/db';
+import { readDb } from '@/lib/db';
 import { timed } from '@/lib/perf';
 import { signOut } from '@/app/(admin)/admin/login/actions';
 import { AdminNav } from './admin-nav';
@@ -34,6 +34,7 @@ export function AdminSidebar() {
 
       <div className="flex flex-col gap-1">
         <Link
+          prefetch={false}
           href="/"
           className="text-muted-foreground hover:text-foreground flex h-8 items-center gap-2 px-2.5 text-xs"
         >
@@ -59,7 +60,9 @@ async function BookCount() {
   let total: number | null = null;
   try {
     const [row] = await timed('sidebar.book-count', () =>
-      getDb().select({ total: count() }).from(books).where(isNull(books.deletedAt)),
+      readDb('sidebar.book-count', (db) =>
+        db.select({ total: count() }).from(books).where(isNull(books.deletedAt)),
+      ),
     );
     total = row?.total ?? 0;
   } catch {

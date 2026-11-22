@@ -3,7 +3,7 @@ import { notFound } from 'next/navigation';
 import { BookForm } from '@/features/admin/components/book-form';
 import { getBookForEdit, getBookFormOptions } from '@/features/admin/data/book-form';
 import { requireAdminSession } from '@/lib/auth/admin/guard';
-import { getDb } from '@/lib/db';
+import { readDb } from '@/lib/db';
 import { timed } from '@/lib/perf';
 
 export const metadata: Metadata = { title: 'Edit book' };
@@ -18,9 +18,8 @@ export default async function EditBookPage({
 }) {
   await requireAdminSession();
   const [{ id }, query] = await Promise.all([params, searchParams]);
-  const db = getDb();
   const [book, options] = await timed('page.book-edit', () =>
-    Promise.all([getBookForEdit(db, id), getBookFormOptions(db)]),
+    readDb('page.book-edit', (db) => Promise.all([getBookForEdit(db, id), getBookFormOptions(db)])),
   );
   if (!book) notFound();
 

@@ -4,7 +4,9 @@ import { drizzle, type PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
 import * as schema from '@/db/schema';
 import { requireEnv } from '@/lib/env';
+import { withDeadline } from './deadline';
 import { isStale } from './freshness';
+import { serialise } from './serialise';
 import { clientOptions } from './options';
 
 export type Database = PostgresJsDatabase<typeof schema>;
@@ -20,13 +22,15 @@ const globalForDb = globalThis as unknown as { __audioshelfDb?: Holder };
 
 function open(): Holder {
   const holder = {} as Holder;
-  holder.client = postgres(requireEnv('DATABASE_URL'), {
-    ...clientOptions(process.env.NODE_ENV === 'production'),
-    // Every query the driver sends counts as use, so a slow page keeps its connection.
-    debug: () => {
-      holder.lastUsedAt = Date.now();
-    },
-  });
+  holder.client = serialise(
+    postgres(requireEnv('DATABASE_URL'), {
+      ...clientOptions(process.env.NODE_ENV === 'production'),
+      // Every query the driver sends counts as use, so a slow page keeps its connection.
+      debug: () => {
+        holder.lastUsedAt = Date.now();
+      },
+    }),
+  );
   holder.db = drizzle(holder.client, { schema, casing: 'snake_case' });
   holder.lastUsedAt = Date.now();
   return holder;
@@ -57,4 +61,19 @@ export function getDb(): Database {
   const fresh = open();
   globalForDb.__audioshelfDb = fresh;
   return fresh.db;
+}
+
+/** Closes the current connection right away (running queries are cut); the next `getDb()` opens a new one. */
+export function resetDb(): void {
+  const current = globalForDb.__audioshelfDb;
+  globalForDb.__audioshelfDb = undefined;
+  if (current) void current.client.end({ timeout: 0 }).catch(() => {});
+}
+
+/**
+ * Runs a read against the database with a deadline and one retry on a fresh connection
+ * (see `deadline.ts`). Use it for everything a page needs to render.
+ */
+export function readDb<T>(label: string, run: (db: Database) => Promise<T>): Promise<T> {
+  return withDeadline(label, run, { getHandle: getDb, reset: resetDb });
 }

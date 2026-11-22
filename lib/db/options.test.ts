@@ -2,9 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { clientOptions } from './options';
 
 describe('clientOptions', () => {
-  it('never pipelines queries: through the Supabase pooler a second query sent before the first finished leaves the first hanging', () => {
+  it('keeps the driver pipeline short (one at a time is `serialise`, 0 would break transactions)', () => {
     expect(clientOptions(true).max_pipeline).toBe(1);
-    expect(clientOptions(false).max_pipeline).toBe(1);
   });
 
   it('does not use prepared statements (transaction pooler)', () => {

@@ -4,9 +4,8 @@ export function clientOptions(production: boolean) {
     // Supabase's transaction pooler (port 6543) does not support prepared statements.
     prepare: false,
     max: production ? 1 : 5,
-    // One query at a time per connection. By default the driver sends the next query before
-    // the previous one has finished; through the pooler that left the first one hanging until
-    // the function timed out (production, 21 Nov: every page that ran queries with Promise.all).
+    // Only a cap on queries sent together. It does not make queries run one at a time (`1` still
+    // allows two, `0` breaks transactions): that is `serialise.ts`'s job.
     max_pipeline: 1,
     connect_timeout: 10,
   };

@@ -70,6 +70,7 @@ export function AdminNav({ bookCount }: { bookCount: ReactNode }) {
         const active = isActive(pathname, item);
         return (
           <Link
+            prefetch={false}
             key={item.key}
             href={item.href}
             aria-current={active ? 'page' : undefined}
