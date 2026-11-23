@@ -83,8 +83,14 @@ export type SaveBookResult =
   | { ok: false; reason: 'not_found' }
   | { ok: false; reason: 'invalid'; errors: FieldErrors };
 
+/** Only when a new book is created under an exact slug (the import) and that slug is taken. */
+export type SlugTaken = { ok: false; reason: 'slug_taken' };
+
+/** Thrown inside the transaction so the authors and narrators made on the way roll back. */
+class SlugTakenError extends Error {}
+
 /** Names are compared without case and extra spacing, so "леся  УКРАЇНКА" is "Леся Українка". */
-const nameKey = (name: string) =>
+export const nameKey = (name: string) =>
   name.normalize('NFC').replace(/\s+/g, ' ').trim().toLocaleLowerCase('uk');
 
 type Tx = Parameters<Parameters<AdminDb['transaction']>[0]>[0];
@@ -114,6 +120,37 @@ export async function saveBook(
   db: AdminDb,
   bookId: string | null,
   input: BookFormInput,
+): Promise<SaveBookResult>;
+/**
+ * With `options.slug` a new book gets exactly that slug, or nothing is written and the answer
+ * is `slug_taken` (the form instead takes the next free `-2`, `-3`, …). Used by the import, where
+ * the slug is the book's identity.
+ */
+export async function saveBook(
+  db: AdminDb,
+  bookId: null,
+  input: BookFormInput,
+  options: { slug: string },
+): Promise<SaveBookResult | SlugTaken>;
+export async function saveBook(
+  db: AdminDb,
+  bookId: string | null,
+  input: BookFormInput,
+  options?: { slug: string },
+): Promise<SaveBookResult | SlugTaken> {
+  try {
+    return await saveBookInTransaction(db, bookId, input, options);
+  } catch (error) {
+    if (error instanceof SlugTakenError) return { ok: false, reason: 'slug_taken' };
+    throw error;
+  }
+}
+
+async function saveBookInTransaction(
+  db: AdminDb,
+  bookId: string | null,
+  input: BookFormInput,
+  options: { slug: string } | undefined,
 ): Promise<SaveBookResult> {
   return db.transaction(async (tx): Promise<SaveBookResult> => {
     let existingStatus: schema.Book['status'] | undefined;
@@ -238,6 +275,16 @@ export async function saveBook(
       narratorId,
       categoryId: input.categoryId,
     };
+
+    if (bookId === null && options) {
+      const [row] = await tx
+        .insert(books)
+        .values({ ...fields, slug: options.slug })
+        .onConflictDoNothing({ target: books.slug })
+        .returning({ id: books.id, slug: books.slug, updatedAt: books.updatedAt });
+      if (!row) throw new SlugTakenError();
+      return { ok: true, ...row };
+    }
 
     if (bookId === null) {
       const created = await insertWithUniqueSlug(

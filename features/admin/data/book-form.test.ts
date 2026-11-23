@@ -364,6 +364,40 @@ describe('saveBook: a live book keeps the publish rules', () => {
   });
 });
 
+describe('saveBook: under an exact slug (the import)', () => {
+  it('creates the book with exactly that slug, not one made from the title', async () => {
+    const result = await saveBook(t.db, null, input({ title: 'Сіддхартха' }), {
+      slug: 'hesse-siddhartha',
+    });
+    expect(result).toMatchObject({ ok: true, slug: 'hesse-siddhartha' });
+    expect(await count(schema.books)).toBe(1);
+  });
+
+  it('answers slug_taken instead of adding -2, and rolls back the author made on the way', async () => {
+    await t.db.insert(schema.books).values({ slug: 'hesse-siddhartha', title: 'Other' });
+    const result = await saveBook(
+      t.db,
+      null,
+      input({ title: 'Сіддхартха', author: NEW_CHOICE, newAuthorName: 'Герман Гессе' }),
+      { slug: 'hesse-siddhartha' },
+    );
+    expect(result).toEqual({ ok: false, reason: 'slug_taken' });
+    expect(await count(schema.books)).toBe(1);
+    expect(await count(schema.authors)).toBe(0);
+  });
+
+  it('still reports field errors the usual way', async () => {
+    const result = await saveBook(
+      t.db,
+      null,
+      { ...input({ title: 'T' }), categoryId: '00000000-0000-4000-8000-000000000000' },
+      { slug: 'a-slug' },
+    );
+    expect(result).toMatchObject({ ok: false, reason: 'invalid' });
+    expect(await count(schema.books)).toBe(0);
+  });
+});
+
 describe('getBookForEdit', () => {
   it('returns the fields the form needs', async () => {
     const { id, slug } = await create({

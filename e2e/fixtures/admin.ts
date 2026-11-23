@@ -10,6 +10,8 @@ import type { Page } from '@playwright/test';
  */
 export const ADMIN_SESSION_SECRET = 'e2e-session-secret-0123456789-abcdefghijklmnop';
 export const ADMIN_SETUP_TOKEN = 'e2e-setup-token-0123456789-abcdefghijklmnop';
+/** The bearer token of the content import (`/api/admin/import`), test-only. */
+export const ADMIN_IMPORT_TOKEN = 'e2e-import-token-0123456789-abcdefghijklmnop';
 
 // Test-only P-256 keys. Never used anywhere else.
 const OWNER_PRIVATE_KEY =

@@ -135,6 +135,31 @@ describe('beginTrackUpload', () => {
   });
 });
 
+describe('beginTrackUpload: options for the import', () => {
+  const base = { file: file('01.mp3'), hash: HASH, durationSeconds: 60 };
+
+  it('uses the given title for the part and the key, not the file name', async () => {
+    const result = await beginTrackUpload(t.db, { ...base, bookId }, { title: '  Син брагмана ' });
+    expect(result).toMatchObject({
+      ok: true,
+      key: 'books/my-book/audio/01-syn-brahmana-ab12cd34.mp3',
+    });
+    expect((await getBookTracks(t.db, bookId)).tracks[0]).toMatchObject({
+      title: 'Син брагмана',
+      originalFilename: '01.mp3',
+    });
+  });
+
+  it('accepts the expected position, and refuses it when another part took the place', async () => {
+    expect(await beginTrackUpload(t.db, { ...base, bookId }, { expectPosition: 1 })).toMatchObject({
+      ok: true,
+    });
+    const stale = await beginTrackUpload(t.db, { ...base, bookId }, { expectPosition: 1 });
+    expect(stale).toMatchObject({ ok: false, reason: 'wrong_state' });
+    expect((await getBookTracks(t.db, bookId)).tracks).toHaveLength(1);
+  });
+});
+
 describe('completeTrackUpload', () => {
   it('checks the stored object, makes the track ready, adds its chapter and updates the book length', async () => {
     const begun = await beginTrackUpload(t.db, {
