@@ -48,3 +48,31 @@ export const named = (name: string, source = THREE) => ({
   mimeType: 'audio/mpeg',
   buffer: fs.readFileSync(source),
 });
+
+const field = (page: Page, label: string) => page.getByLabel(label, { exact: true });
+
+/**
+ * Fills what a book needs besides audio (a new author, a new narrator, the Fiction category)
+ * and saves. Needs a ready part already on the page, or Publish stays blocked.
+ */
+export async function completeBook(page: Page) {
+  await field(page, 'Author').selectOption({ label: '+ New author…' });
+  await field(page, 'New author’s name').fill(`${E2E_PREFIX}Author ${RUN}${counter++}`);
+  await field(page, 'Narrator (read by)').selectOption({ label: '+ New narrator…' });
+  await field(page, 'New narrator’s name').fill(`${E2E_PREFIX}Narrator ${RUN}${counter++}`);
+  await field(page, 'Category').selectOption({ label: 'Fiction' });
+  await page.getByRole('button', { name: /^Save (draft|changes)$/ }).click();
+  await expect(page.getByText(/^Saved at /)).toBeVisible();
+}
+
+export const publishButton = (page: Page) =>
+  page.getByRole('button', { name: 'Publish', exact: true });
+export const unpublishButton = (page: Page) =>
+  page.getByRole('button', { name: 'Unpublish', exact: true });
+
+/** The whole way to a live book, through the UI: fill, save, press Publish. */
+export async function publishViaUi(page: Page) {
+  await completeBook(page);
+  await publishButton(page).click();
+  await expect(unpublishButton(page)).toBeVisible();
+}

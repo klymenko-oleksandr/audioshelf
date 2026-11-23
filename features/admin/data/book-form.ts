@@ -102,7 +102,8 @@ async function takenSlugs(tx: Tx, column: PgColumn, base: string): Promise<Reado
  * and narrators made on the way are rolled back when anything else is refused.
  *
  * - A new book is always a draft; editing never changes the status or the publish date
- *   (publishing is 4d).
+ *   (publishing has its own actions, `publish/data.ts`). A published or scheduled book cannot
+ *   lose its author, narrator or category here.
  * - The slug is made from the title when the book is created and never changes afterwards, so
  *   links and share previews keep working after a rename.
  * - A new author or narrator whose name already exists is refused instead of silently reused.
@@ -115,15 +116,17 @@ export async function saveBook(
   input: BookFormInput,
 ): Promise<SaveBookResult> {
   return db.transaction(async (tx): Promise<SaveBookResult> => {
+    let existingStatus: schema.Book['status'] | undefined;
     if (bookId !== null) {
       if (!isUuid(bookId)) return { ok: false, reason: 'not_found' };
       // Lock the row so a second save of the same book waits instead of interleaving.
       const [existing] = await tx
-        .select({ id: books.id })
+        .select({ id: books.id, status: books.status })
         .from(books)
         .where(and(eq(books.id, bookId.toLowerCase()), isNull(books.deletedAt)))
         .for('update');
       if (!existing) return { ok: false, reason: 'not_found' };
+      existingStatus = existing.status;
     }
 
     // 1. Check every reference before writing anything.
@@ -174,6 +177,14 @@ export async function saveBook(
         .from(categories)
         .where(eq(categories.id, input.categoryId));
       if (!row) errors.category = 'This category no longer exists. Pick another.';
+    }
+
+    // A live book keeps meeting the publish rules (`publish/rules.ts`): the form may change the
+    // author, narrator and category but not take them away. A draft can be incomplete.
+    if (existingStatus !== undefined && existingStatus !== 'draft') {
+      if (input.author.kind === 'none') errors.author ??= 'A published book needs an author.';
+      if (input.narrator.kind === 'none') errors.narrator ??= 'A published book needs a narrator.';
+      if (input.categoryId === null) errors.category ??= 'A published book needs a category.';
     }
 
     if (Object.keys(errors).length > 0) return { ok: false, reason: 'invalid', errors };

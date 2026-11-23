@@ -10,6 +10,7 @@ import {
   openNewDraft,
   parts,
   picker,
+  publishViaUi,
   ready,
 } from './fixtures/track-card';
 
@@ -17,12 +18,6 @@ test.skip(TARGETS_DEPLOYMENT, 'writes to the database: only against the throwawa
 test.use({ locale: 'en-US', viewport: { width: 1440, height: 1024 } });
 test.beforeAll(removeE2eRecords);
 test.afterAll(removeE2eRecords);
-
-// There is no publish button until 4d, so the test publishes the draft in the database.
-const publish = (id: string) =>
-  withE2eSql(
-    (sql) => sql`update books set status = 'published', published_at = now() where id = ${id}`,
-  );
 
 const chapterRows = (id: string) =>
   withE2eSql(
@@ -60,7 +55,7 @@ test.describe('adding parts to a published book', () => {
     await chapterTitle.fill('Opening');
     await chapterTitle.press('Enter');
     await saved;
-    await publish(id);
+    await publishViaUi(page);
 
     const before = await chapterRows(id);
     const listening = await playerBook(page, id); // fills the listeners' cache
@@ -107,7 +102,7 @@ test.describe('adding parts to a published book', () => {
     const { id } = await openNewDraft(page);
     await picker(page).setInputFiles(THREE);
     await expect(ready(parts(page).first())).toBeVisible();
-    await publish(id);
+    await publishViaUi(page);
     await page.reload();
 
     // The first file is refused by storage; the second must not be added behind it.
@@ -123,12 +118,12 @@ test.describe('adding parts to a published book', () => {
   test('a failed part with a ready part after it cannot be retried in place, only removed', async ({
     page,
   }) => {
-    const { id } = await openNewDraft(page);
+    await openNewDraft(page);
     // On a draft the batch carries on after the failure: part 1 fails, part 2 becomes ready.
     await picker(page).setInputFiles([named(`reject-${RUN}.mp3`), named(`two-${RUN}.mp3`, TWO)]);
     await expect(parts(page).nth(0).getByText('Failed', { exact: true })).toBeVisible();
     await expect(ready(parts(page).nth(1))).toBeVisible();
-    await publish(id);
+    await publishViaUi(page);
     await page.reload();
 
     const failed = parts(page).nth(0);

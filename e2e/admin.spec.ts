@@ -208,12 +208,12 @@ test.describe('admin: books list', () => {
     await expect(table.getByRole('link', { name: 'Чернетка' })).toBeVisible();
   });
 
-  test('flags a published book without a cover as needing attention', async ({ page }) => {
+  test('flags a published book without a narrator as needing attention', async ({ page }) => {
     await page.getByRole('link', { name: 'Needs attention · 1' }).click();
     await expect(page).toHaveURL(/tab=attention/);
     const table = page.getByRole('table', { name: 'Books' });
     await expect(table.getByRole('link', { name: 'Старша книга' })).toBeVisible();
-    await expect(table.getByText('Published · Cover missing')).toBeVisible();
+    await expect(table.getByText('Published · Narrator missing')).toBeVisible();
     await expect(table.getByRole('link', { name: 'Три тони' })).toHaveCount(0);
   });
 

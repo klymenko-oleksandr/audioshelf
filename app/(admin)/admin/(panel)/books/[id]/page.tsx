@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { AudioTracksCard } from '@/features/admin/components/audio-tracks-card';
+import { BookReadinessProvider } from '@/features/admin/components/book-readiness';
 import { BookForm } from '@/features/admin/components/book-form';
 import { getBookForEdit, getBookFormOptions } from '@/features/admin/data/book-form';
 import { getBookTracks } from '@/features/admin/tracks/data';
@@ -27,13 +28,16 @@ export default async function EditBookPage({
   );
   if (!book) notFound();
 
+  const readyTracks = tracks.tracks.filter((track) => track.status === 'ready').length;
+
   return (
-    <BookForm
-      key={book.id}
-      book={book}
-      options={options}
-      created={query.created === '1'}
-      tracks={<AudioTracksCard bookId={book.id} bookStatus={book.status} initial={tracks} />}
-    />
+    <BookReadinessProvider key={book.id} initialReadyTracks={readyTracks}>
+      <BookForm
+        book={book}
+        options={options}
+        created={query.created === '1'}
+        tracks={<AudioTracksCard bookId={book.id} bookStatus={book.status} initial={tracks} />}
+      />
+    </BookReadinessProvider>
   );
 }

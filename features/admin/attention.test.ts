@@ -5,7 +5,7 @@ const complete: AttentionInput = {
   status: 'published',
   hasAuthor: true,
   hasCategory: true,
-  hasCover: true,
+  hasNarrator: true,
   readyTracks: 3,
   failedTrackPositions: [],
 };
@@ -19,14 +19,18 @@ describe('findAttention', () => {
   it('flags the fields a live book must have (PRD: publish rules)', () => {
     expect(check({ hasAuthor: false })).toEqual([{ kind: 'missing', field: 'author' }]);
     expect(check({ hasCategory: false })).toEqual([{ kind: 'missing', field: 'category' }]);
-    expect(check({ hasCover: false })).toEqual([{ kind: 'missing', field: 'cover' }]);
+    expect(check({ hasNarrator: false })).toEqual([{ kind: 'missing', field: 'narrator' }]);
     expect(check({ readyTracks: 0 })).toEqual([{ kind: 'no-ready-track' }]);
   });
 
   it('applies the same rules to a scheduled book', () => {
-    expect(check({ status: 'scheduled', hasCover: false })).toEqual([
-      { kind: 'missing', field: 'cover' },
+    expect(check({ status: 'scheduled', hasAuthor: false })).toEqual([
+      { kind: 'missing', field: 'author' },
     ]);
+  });
+
+  it('does not ask for a cover', () => {
+    expect(check({})).toEqual([]);
   });
 
   it('leaves an unfinished draft alone: being incomplete is what a draft is', () => {
@@ -35,7 +39,7 @@ describe('findAttention', () => {
         status: 'draft',
         hasAuthor: false,
         hasCategory: false,
-        hasCover: false,
+        hasNarrator: false,
         readyTracks: 0,
       }),
     ).toEqual([]);
@@ -63,12 +67,12 @@ describe('attentionNote', () => {
   it('words the first problem for the list row and counts the rest', () => {
     expect(attentionNote([{ kind: 'failed-track', positions: [4] }])).toBe('Track 4 failed');
     expect(attentionNote([{ kind: 'failed-track', positions: [2, 5] }])).toBe('Tracks 2, 5 failed');
-    expect(attentionNote([{ kind: 'missing', field: 'cover' }])).toBe('Cover missing');
+    expect(attentionNote([{ kind: 'missing', field: 'narrator' }])).toBe('Narrator missing');
     expect(attentionNote([{ kind: 'no-ready-track' }])).toBe('No ready track');
     expect(
       attentionNote([
         { kind: 'missing', field: 'author' },
-        { kind: 'missing', field: 'cover' },
+        { kind: 'missing', field: 'category' },
         { kind: 'no-ready-track' },
       ]),
     ).toBe('Author missing · +2 more');

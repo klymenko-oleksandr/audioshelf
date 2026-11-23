@@ -297,6 +297,73 @@ describe('saveBook: editing', () => {
   });
 });
 
+describe('saveBook: a live book keeps the publish rules', () => {
+  const full = (extra: Record<string, string> = {}) => ({
+    title: 'Live',
+    author: NEW_CHOICE,
+    newAuthorName: 'A. Writer',
+    narrator: NEW_CHOICE,
+    newNarratorName: 'N. Reader',
+    category: fiction.id,
+    ...extra,
+  });
+
+  async function live(status: 'published' | 'scheduled' = 'published') {
+    const { id } = await create(full());
+    await t.db.update(schema.books).set({ status }).where(eq(schema.books.id, id));
+    return id;
+  }
+
+  it('refuses to remove the author, narrator or category from a published book', async () => {
+    const id = await live();
+    const result = await saveBook(t.db, id, input({ title: 'Live' }));
+    expect(result).toEqual({
+      ok: false,
+      reason: 'invalid',
+      errors: {
+        author: 'A published book needs an author.',
+        narrator: 'A published book needs a narrator.',
+        category: 'A published book needs a category.',
+      },
+    });
+    const book = await bookRow(id);
+    expect(book.authorId).not.toBeNull();
+    expect(book.narratorId).not.toBeNull();
+    expect(book.categoryId).not.toBeNull();
+  });
+
+  it('applies to a scheduled book too', async () => {
+    const id = await live('scheduled');
+    expect(await saveBook(t.db, id, input({ title: 'Live' }))).toMatchObject({
+      ok: false,
+      reason: 'invalid',
+    });
+  });
+
+  it('lets a published book change its author, narrator and category', async () => {
+    const id = await live();
+    const { narratorId } = await bookRow(id);
+    const result = await saveBook(
+      t.db,
+      id,
+      input(
+        full({
+          newAuthorName: 'Someone Else',
+          narrator: narratorId!,
+          category: poetry.id,
+        }),
+      ),
+    );
+    expect(result).toMatchObject({ ok: true });
+    expect((await bookRow(id)).categoryId).toBe(poetry.id);
+  });
+
+  it('still saves an incomplete draft', async () => {
+    const { id } = await create({ title: 'Draft' });
+    expect(await saveBook(t.db, id, input({ title: 'Draft 2' }))).toMatchObject({ ok: true });
+  });
+});
+
 describe('getBookForEdit', () => {
   it('returns the fields the form needs', async () => {
     const { id, slug } = await create({

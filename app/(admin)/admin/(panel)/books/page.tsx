@@ -3,6 +3,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { Suspense } from 'react';
 import { buttonVariants } from '@/components/ui/button';
+import { DeletedNotice } from '@/features/admin/components/deleted-notice';
 import { BooksKpis } from '@/features/admin/components/books-kpis';
 import { BooksEmpty, BooksTable } from '@/features/admin/components/books-table';
 import { BooksToolbar } from '@/features/admin/components/books-toolbar';
@@ -24,16 +25,24 @@ export default async function AdminBooksPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   await requireAdminSession();
-  const query = parseBooksQuery(await searchParams);
+  const params = await searchParams;
+  const query = parseBooksQuery(params);
+  const deleted = typeof params.deleted === 'string' ? params.deleted.slice(0, 200) : null;
   // A Suspense boundary here (not a loading.tsx) so unknown pages under /admin/books still answer 404.
   return (
     <Suspense fallback={<PanelSkeleton />}>
-      <BooksContent query={query} />
+      <BooksContent query={query} deleted={deleted} />
     </Suspense>
   );
 }
 
-async function BooksContent({ query }: { query: ReturnType<typeof parseBooksQuery> }) {
+async function BooksContent({
+  query,
+  deleted,
+}: {
+  query: ReturnType<typeof parseBooksQuery>;
+  deleted: string | null;
+}) {
   const { rows, counts, totals, categories } = await timed('page.books-list', () =>
     readDb('page.books-list', (db) => getAdminBooks(db, query)),
   );
@@ -52,6 +61,7 @@ async function BooksContent({ query }: { query: ReturnType<typeof parseBooksQuer
       </PageHeader>
 
       <div className="flex flex-col gap-4 px-8 py-6">
+        {deleted && <DeletedNotice title={deleted} />}
         <BooksKpis totals={totals} />
         <BooksToolbar query={query} counts={counts} categories={categories} />
         {rows.length > 0 ? (

@@ -30,7 +30,6 @@ const ITEMS: Item[] = [
     label: 'Categories',
     href: '/admin/categories',
     icon: RiFilter3Line,
-    soon: true,
   },
   { key: 'listeners', label: 'Listeners', href: '/admin/listeners', icon: RiUser3Line, soon: true },
 ];

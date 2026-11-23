@@ -22,6 +22,7 @@ export async function removeE2eRecords(): Promise<void> {
     await sql`delete from books where title like ${like}`;
     await sql`delete from authors where name like ${like}`;
     await sql`delete from narrators where name like ${like}`;
+    await sql`delete from categories where name_uk like ${like}`;
   } finally {
     await sql.end({ timeout: 2 });
   }

@@ -32,6 +32,11 @@ beforeAll(async () => {
     .values({ slug: 'n', name: 'Остап Читець' })
     .returning();
 
+  const [other] = await db
+    .insert(schema.narrators)
+    .values({ slug: 'n2', name: 'Інший Голос' })
+    .returning();
+
   const add = async (
     slug: string,
     title: string,
@@ -69,17 +74,24 @@ beforeAll(async () => {
     updatedAt: new Date('2026-11-01T00:00:00Z'),
   });
   await add('beta', 'Бета', {
+    narratorId: other!.id,
     status: 'published',
     publishedAt: new Date('2026-07-01T00:00:00Z'),
     categoryId: poetry!.id,
     updatedAt: new Date('2026-11-03T00:00:00Z'),
   });
-  // Published but without a cover: needs attention.
-  await add('gamma', 'Гамма', {
-    status: 'published',
-    coverLargeKey: null,
-    updatedAt: new Date('2026-11-02T00:00:00Z'),
-  });
+  // Published but without a ready track: needs attention (a missing cover is not a problem).
+  await add(
+    'gamma',
+    'Гамма',
+    {
+      narratorId: other!.id,
+      status: 'published',
+      coverLargeKey: null,
+      updatedAt: new Date('2026-11-02T00:00:00Z'),
+    },
+    [],
+  );
   // A draft with a failed track: needs attention.
   await add('delta', 'Дельта', { status: 'draft', updatedAt: new Date('2026-11-04T00:00:00Z') }, [
     'ready',
@@ -100,11 +112,13 @@ beforeAll(async () => {
     [],
   );
   await add('zeta', 'Дзета', {
+    narratorId: other!.id,
     status: 'scheduled',
     publishAt: new Date('2026-12-01T09:00:00Z'),
     updatedAt: new Date('2026-11-06T00:00:00Z'),
   });
   await add('eta', 'Ета', {
+    narratorId: other!.id,
     status: 'scheduled',
     publishAt: new Date('2026-11-25T09:00:00Z'),
     updatedAt: new Date('2026-11-07T00:00:00Z'),
@@ -149,7 +163,7 @@ describe('getAdminBooks', () => {
     const { rows } = await getAdminBooks(t.db, query({ tab: 'attention' }));
     expect(rows.map((r) => [r.title, r.attention])).toEqual([
       ['Дельта', [{ kind: 'failed-track', positions: [2] }]],
-      ['Гамма', [{ kind: 'missing', field: 'cover' }]],
+      ['Гамма', [{ kind: 'no-ready-track' }]],
     ]);
   });
 

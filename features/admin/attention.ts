@@ -3,21 +3,22 @@
  * it is computed from what a book has, so it disappears as soon as the problem is fixed.
  *
  * A draft is allowed to be incomplete, so only a failed track counts there. A published or
- * scheduled book must meet the publish rules: author, category, cover and one ready track.
- * (The narrator is optional in the PRD, so it is not checked.)
+ * scheduled book must meet the publish rules (`publish/rules.ts`): author, category, narrator and
+ * one ready track. There is no cover check: the app shows designed covers and cover upload is
+ * parked (dropped from the rules in 4d, Sasha 23 Nov); add it back with the upload.
  */
 export type BookStatus = 'draft' | 'scheduled' | 'published';
 
 export type AttentionReason =
   | { kind: 'failed-track'; positions: number[] }
-  | { kind: 'missing'; field: 'author' | 'category' | 'cover' }
+  | { kind: 'missing'; field: 'author' | 'category' | 'narrator' }
   | { kind: 'no-ready-track' };
 
 export interface AttentionInput {
   status: BookStatus;
   hasAuthor: boolean;
   hasCategory: boolean;
-  hasCover: boolean;
+  hasNarrator: boolean;
   readyTracks: number;
   /** Positions (from 1) of the tracks whose upload or processing failed. */
   failedTrackPositions: number[];
@@ -32,12 +33,16 @@ export function findAttention(book: AttentionInput): AttentionReason[] {
 
   if (!book.hasAuthor) reasons.push({ kind: 'missing', field: 'author' });
   if (!book.hasCategory) reasons.push({ kind: 'missing', field: 'category' });
-  if (!book.hasCover) reasons.push({ kind: 'missing', field: 'cover' });
+  if (!book.hasNarrator) reasons.push({ kind: 'missing', field: 'narrator' });
   if (book.readyTracks === 0) reasons.push({ kind: 'no-ready-track' });
   return reasons;
 }
 
-const FIELD_LABEL = { author: 'Author', category: 'Category', cover: 'Cover' } as const;
+const FIELD_LABEL = {
+  author: 'Author',
+  category: 'Category',
+  narrator: 'Narrator',
+} as const;
 
 function describe(reason: AttentionReason): string {
   switch (reason.kind) {
