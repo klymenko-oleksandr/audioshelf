@@ -1,5 +1,8 @@
 'use client';
 
+import { getLibraryFlagsStore } from '@/features/library/flags/use-library-flags';
+import { getLibraryHistoryStore } from '@/features/library/history/use-library-history';
+import { createBrowserChannel, type SettingsChannel } from '@/features/settings/channel';
 import { getSettings, getSettingsStore } from '@/features/settings/use-settings';
 import { useMemo, useSyncExternalStore } from 'react';
 import { loadPlayerBook } from './data/load-book';
@@ -10,6 +13,15 @@ import { createProgressStore } from './storage/local-db';
 import type { ProgressRecord } from './storage/progress-store';
 
 let engine: AudioEngine | null = null;
+let libraryChannel: SettingsChannel | null = null;
+
+/**
+ * Tell the other tabs that saved places changed here (a card removed from Continue listening
+ * or History): they re-read. Likes, Listen later and History ping by themselves.
+ */
+export function announceLibraryChange(): void {
+  libraryChannel?.post();
+}
 
 /**
  * The one player for this tab. Created on first use in the browser and never torn down:
@@ -28,6 +40,16 @@ export function getPlayer(): AudioEngine {
     resolveBook: (bookId) => loadPlayerBook(bookId),
     onPlaybackStart: tabs.announce,
     settings: getSettings,
+    onHistory: (event) => {
+      const history = getLibraryHistoryStore();
+      if (event.type === 'play') {
+        void history.recordPlay(event.bookId, event.restarted);
+        return;
+      }
+      // A finished book is marked in History and leaves Listen later (PRD), without a toast.
+      void history.recordFinish(event.bookId);
+      void getLibraryFlagsStore().remove('listenLater', event.bookId);
+    },
   });
   engine = created;
   // Start loading Settings now, so the first Play already uses the saved intervals.
@@ -42,7 +64,14 @@ export function getPlayer(): AudioEngine {
   });
   window.addEventListener('pagehide', () => created.flush());
 
-  void created.init();
+  // Another tab changed the library (or removed a Continue listening card): re-read progress.
+  libraryChannel = createBrowserChannel('audioshelf-library', 'audioshelf:library-ping');
+  libraryChannel.subscribe(() => void created.refreshProgress());
+
+  void created.init().then(() => {
+    // One time: History entries for places saved before History existed.
+    void getLibraryHistoryStore().backfill(created.getAllProgress());
+  });
   return created;
 }
 

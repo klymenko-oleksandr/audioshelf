@@ -4,6 +4,7 @@ import {
   AUTO_REWIND_S,
   autoRewindTarget,
   chapterStopTarget,
+  historyFinishDue,
   isChapterBoundary,
   isFinished,
   nextChapterTarget,
@@ -280,5 +281,38 @@ describe('isChapterBoundary — did a file end where a chapter ends?', () => {
     expect(isChapterBoundary(chapters, 601)).toBe(false);
     expect(isChapterBoundary(chapters, 0)).toBe(false);
     expect(isChapterBoundary(chapters, 2100)).toBe(false);
+  });
+});
+
+describe('historyFinishDue — when does the book go to History as finished?', () => {
+  const base = { ongoing: false, duration: 2100, ended: false };
+
+  it('is due at the real end, however the listener got there', () => {
+    expect(historyFinishDue({ ...base, position: 2100, playing: false, ended: true })).toBe(true);
+  });
+
+  it('is due when playback is inside the last 30 s (or 2%) of a long book', () => {
+    expect(historyFinishDue({ ...base, position: 2080, playing: true })).toBe(true);
+    expect(historyFinishDue({ ...base, position: 2069, playing: true })).toBe(false);
+  });
+
+  it('uses the same smaller-of-30 s-and-2% rule as the saved "finished" flag', () => {
+    // A 10-minute book: 2% is 12 s.
+    expect(historyFinishDue({ ...base, duration: 600, position: 589, playing: true })).toBe(true);
+    expect(historyFinishDue({ ...base, duration: 600, position: 587, playing: true })).toBe(false);
+  });
+
+  it('is not due for a seek into the zone while paused', () => {
+    expect(historyFinishDue({ ...base, position: 2090, playing: false })).toBe(false);
+  });
+
+  it('is never due for an ongoing book: more parts are coming', () => {
+    expect(
+      historyFinishDue({ ...base, ongoing: true, position: 2100, playing: true, ended: true }),
+    ).toBe(false);
+  });
+
+  it('is not due for an unknown length', () => {
+    expect(historyFinishDue({ ...base, duration: 0, position: 0, playing: true })).toBe(false);
   });
 });

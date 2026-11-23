@@ -47,6 +47,8 @@ const SERVER_SNAPSHOT: FlagsSnapshot = {
   ready: false,
   liked: new Set(),
   listenLater: new Set(),
+  likedAt: new Map(),
+  listenLaterAt: new Map(),
 };
 
 function useFlagToastLabels(): FlagToastLabels {
@@ -63,9 +65,20 @@ function useFlagToastLabels(): FlagToastLabels {
   );
 }
 
+function newestFirst(added: ReadonlyMap<string, number>): string[] {
+  return [...added].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(([id]) => id);
+}
+
 export interface LibraryFlags {
   /** False until storage has been read. */
   ready: boolean;
+  /** Liked books, most recently added first (for the Library page). */
+  likedIds: readonly string[];
+  /** Listen later, most recently added first. */
+  listenLaterIds: readonly string[];
+  /** When each liked / queued book was added. */
+  likedAt: ReadonlyMap<string, number>;
+  listenLaterAt: ReadonlyMap<string, number>;
   isLiked(bookId: string): boolean;
   isListenLater(bookId: string): boolean;
   /** Flips the like, shows the change at once and a toast with Undo. */
@@ -91,6 +104,10 @@ export function useLibraryFlags(): LibraryFlags {
       void toggleWithToast(getLibraryFlagsStore(), kind, bookId, labels);
     return {
       ready: snapshot.ready,
+      likedIds: newestFirst(snapshot.likedAt),
+      listenLaterIds: newestFirst(snapshot.listenLaterAt),
+      likedAt: snapshot.likedAt,
+      listenLaterAt: snapshot.listenLaterAt,
       isLiked: (bookId) => snapshot.liked.has(bookId),
       isListenLater: (bookId) => snapshot.listenLater.has(bookId),
       toggleLike: (bookId) => toggle('like', bookId),

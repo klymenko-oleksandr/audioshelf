@@ -20,11 +20,19 @@ export interface ProgressRecord {
    * hidden) moves it.
    */
   pausedAt?: number;
+  /**
+   * The listener removed this book from Continue listening (ms since epoch). Position and
+   * History stay; playing the book again writes a record without it. Only the engine's
+   * `dismissProgress` sets it.
+   */
+  dismissedAt?: number;
 }
 
 export interface ProgressStore {
   all(): Promise<ProgressRecord[]>;
   put(record: ProgressRecord): Promise<void>;
+  /** Forget a book's saved place ("Remove from History"). */
+  remove(bookId: string): Promise<void>;
 }
 
 /** For tests, and as the fallback when IndexedDB is unavailable (private mode, old browsers). */
@@ -37,6 +45,9 @@ export function createMemoryProgressStore(initial: ProgressRecord[] = []): Progr
     all: async () => [...records.values()],
     put: async (record) => {
       records.set(record.bookId, record);
+    },
+    remove: async (bookId) => {
+      records.delete(bookId);
     },
   };
 }

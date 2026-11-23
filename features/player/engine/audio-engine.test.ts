@@ -39,6 +39,7 @@ function setup(saved: ProgressRecord[] = [], playback: Partial<PlaybackSettings>
   const audio = new FakeAudio();
   const store = createMemoryProgressStore(saved);
   const onPlaybackStart = vi.fn();
+  const onHistory = vi.fn();
   let clock = NOW;
   const engine = new AudioEngine({
     createAudio: () => audio,
@@ -46,6 +47,7 @@ function setup(saved: ProgressRecord[] = [], playback: Partial<PlaybackSettings>
     resolveBook: (id) => [book, other].find((b) => b.id === id),
     now: () => clock,
     onPlaybackStart,
+    onHistory,
     settings: () => settings,
   });
   return {
@@ -54,6 +56,7 @@ function setup(saved: ProgressRecord[] = [], playback: Partial<PlaybackSettings>
     store,
     engine,
     onPlaybackStart,
+    onHistory,
     tick: (ms: number) => {
       clock += ms;
       vi.advanceTimersByTime(ms);
@@ -1139,5 +1142,299 @@ describe('settings: play next chapter', () => {
     expect(t.status()).toBe('playing');
     t.audio.advanceTo(599.6); // 0.4 s of book = 0.2 s real
     expect(t.status()).toBe('paused');
+  });
+});
+
+describe('History events (Phase 5c)', () => {
+  const play = (bookId: string, restarted = false) => ({ type: 'play', bookId, restarted });
+  const finish = (bookId: string) => ({ type: 'finish', bookId });
+
+  it('reports a play when the book really starts, not when Play is pressed', () => {
+    const t = setup();
+    t.engine.start(book);
+    expect(t.onHistory).not.toHaveBeenCalled();
+
+    t.audio.becomeReady();
+    expect(t.onHistory.mock.calls).toEqual([[play('a')]]);
+  });
+
+  it('reports nothing for a book that fails to load', () => {
+    const t = setup();
+    t.engine.start(book);
+    t.audio.fail();
+    expect(t.status()).toBe('error');
+    expect(t.onHistory).not.toHaveBeenCalled();
+  });
+
+  it('reports every resume, but not a buffering stall', () => {
+    const t = setup();
+    t.engine.start(book);
+    t.audio.becomeReady();
+    t.audio.stall();
+    t.audio.recover();
+    expect(t.onHistory).toHaveBeenCalledTimes(1);
+
+    t.engine.pause();
+    t.engine.play();
+    expect(t.onHistory.mock.calls.map(([event]) => event)).toEqual([play('a'), play('a')]);
+  });
+
+  it('the book brought back after a reload says nothing until the listener plays it', async () => {
+    const t = setup([record('a', 1000)]);
+    await t.engine.init();
+    expect(t.status()).toBe('paused');
+    expect(t.onHistory).not.toHaveBeenCalled();
+
+    t.engine.play();
+    t.audio.becomeReady();
+    expect(t.onHistory.mock.calls.map(([event]) => event)).toEqual([play('a')]);
+  });
+
+  it('auto-rewind after a long pause is still just a resume', async () => {
+    const t = setup([record('a', 1000, { pausedAt: NOW - 60 * 60_000 })]);
+    await t.engine.init();
+    t.engine.play();
+    t.audio.becomeReady();
+    expect(t.position()).toBe(990); // rewound 10 s
+    expect(t.onHistory.mock.calls.map(([event]) => event)).toEqual([play('a')]);
+  });
+
+  it('playing a finished book again is a restart', async () => {
+    const t = setup([record('a', 2090, { finished: true })]);
+    await t.engine.init();
+    t.engine.start(book);
+    t.audio.becomeReady();
+    expect(t.onHistory.mock.calls.map(([event]) => event)).toEqual([play('a', true)]);
+  });
+
+  it('Play after the book ended is a restart', () => {
+    const t = setup();
+    t.engine.start(book, 2000);
+    t.audio.becomeReady();
+    t.audio.finishTrack();
+    expect(t.status()).toBe('finished');
+    t.onHistory.mockClear();
+
+    t.engine.play();
+    t.audio.becomeReady();
+    expect(t.onHistory.mock.calls.map(([event]) => event)).toEqual([play('a', true)]);
+  });
+
+  it('tapping a chapter of a finished book is a restart too', async () => {
+    const t = setup([record('a', 2090, { finished: true })]);
+    await t.engine.init();
+    t.engine.start(book, 600);
+    t.audio.becomeReady();
+    expect(t.onHistory.mock.calls.map(([event]) => event)).toEqual([play('a', true)]);
+  });
+
+  it('a restart is reported once; the next resume is a normal play', async () => {
+    const t = setup([record('a', 2090, { finished: true })]);
+    await t.engine.init();
+    t.engine.start(book);
+    t.audio.becomeReady();
+    t.engine.pause();
+    t.engine.play();
+    expect(t.onHistory.mock.calls.map(([event]) => event)).toEqual([
+      play('a', true),
+      play('a', false),
+    ]);
+  });
+
+  it('starting another book reports that book', () => {
+    const t = setup();
+    t.engine.start(book);
+    t.audio.becomeReady();
+    t.engine.start(other);
+    t.audio.becomeReady();
+    expect(t.onHistory.mock.calls.map(([event]) => event)).toEqual([play('a'), play('b')]);
+  });
+
+  it('a throwing listener never interrupts playback', () => {
+    const t = setup();
+    t.onHistory.mockImplementation(() => {
+      throw new Error('storage is gone');
+    });
+    t.engine.start(book);
+    t.audio.becomeReady();
+    expect(t.status()).toBe('playing');
+  });
+
+  describe('finishing', () => {
+    it('reports finished when the book plays to its end', () => {
+      const t = setup();
+      t.engine.start(book, 2000);
+      t.audio.becomeReady();
+      t.audio.finishTrack();
+      expect(t.onHistory.mock.calls.map(([event]) => event)).toEqual([play('a'), finish('a')]);
+    });
+
+    it('reports it once playback reaches the last 30 s, at the next save', () => {
+      const t = setup();
+      t.engine.start(book, 2000);
+      t.audio.becomeReady();
+      expect(t.onHistory).toHaveBeenCalledTimes(1);
+
+      t.audio.advanceTo(280); // book time 2080
+      t.tick(SAVE_INTERVAL_MS);
+      expect(t.onHistory.mock.calls.map(([event]) => event)).toEqual([play('a'), finish('a')]);
+    });
+
+    it('does not report it again on every save, nor at the end', () => {
+      const t = setup();
+      t.engine.start(book, 2000);
+      t.audio.becomeReady();
+      t.audio.advanceTo(280);
+      t.tick(SAVE_INTERVAL_MS);
+      t.tick(SAVE_INTERVAL_MS);
+      t.audio.finishTrack();
+      expect(t.onHistory.mock.calls.filter(([event]) => event.type === 'finish')).toHaveLength(1);
+    });
+
+    it('still reports it when the listener pauses within seconds of entering the zone', () => {
+      const t = setup();
+      t.engine.start(book, 2080);
+      t.audio.becomeReady();
+      t.engine.pause();
+      expect(t.onHistory.mock.calls.map(([event]) => event)).toEqual([play('a'), finish('a')]);
+    });
+
+    it('does not report a position dragged into the zone on a paused book', () => {
+      const t = setup([record('a', 1000)]);
+      return t.engine.init().then(() => {
+        t.engine.seek(2095);
+        t.engine.flush();
+        expect(t.saved()).toMatchObject({ finished: true });
+        expect(t.onHistory).not.toHaveBeenCalled();
+      });
+    });
+
+    it('never reports an ongoing book as finished', () => {
+      const ongoing = makeBook('c', [600], true);
+      const t = setup();
+      t.engine.start(ongoing);
+      t.audio.becomeReady();
+      t.audio.finishTrack();
+      expect(t.onHistory.mock.calls.map(([event]) => event)).toEqual([play('c')]);
+    });
+
+    it('reports again after the book was started over', () => {
+      const t = setup();
+      t.engine.start(book, 2080);
+      t.audio.becomeReady();
+      t.engine.pause();
+      t.engine.start(book, 10);
+      t.audio.becomeReady();
+      t.engine.seek(2085);
+      t.engine.pause();
+      expect(t.onHistory.mock.calls.filter(([event]) => event.type === 'finish')).toHaveLength(2);
+    });
+  });
+});
+
+describe('Removing a book from Continue listening and from History (Phase 5c)', () => {
+  it('dismissProgress hides the book but keeps its place, in memory and in storage', async () => {
+    const t = setup([record('b', 100)]);
+    await t.engine.init();
+    const before = t.engine.getProgressVersion();
+
+    await t.engine.dismissProgress('b', true);
+    expect(t.engine.getProgress('b')).toMatchObject({ position: 100, dismissedAt: NOW });
+    expect(t.store.records.get('b')).toMatchObject({ position: 100, dismissedAt: NOW });
+    expect(t.engine.getProgressVersion()).toBeGreaterThan(before);
+  });
+
+  it('dismissProgress(false) brings it back (Undo)', async () => {
+    const t = setup([record('b', 100)]);
+    await t.engine.init();
+    await t.engine.dismissProgress('b', true);
+    await t.engine.dismissProgress('b', false);
+    expect(t.engine.getProgress('b')).toMatchObject({ position: 100 });
+    expect('dismissedAt' in t.engine.getProgress('b')!).toBe(false);
+    expect('dismissedAt' in t.store.records.get('b')!).toBe(false);
+  });
+
+  it('a book removed while it is the paused current one stays removed when the tab saves', async () => {
+    const t = setup([record('a', 1000)]);
+    await t.engine.init(); // restored paused
+    await t.engine.dismissProgress('a', true);
+    t.engine.flush(); // tab hidden
+    expect(t.saved()?.dismissedAt).toBe(NOW);
+  });
+
+  it('playing the book again clears the removal', async () => {
+    const t = setup([record('a', 1000)]);
+    await t.engine.init();
+    await t.engine.dismissProgress('a', true);
+    t.engine.play();
+    t.audio.becomeReady();
+    t.tick(SAVE_INTERVAL_MS);
+    expect('dismissedAt' in t.saved()!).toBe(false);
+  });
+
+  it('does nothing for a book with no saved place', async () => {
+    const t = setup();
+    await t.engine.init();
+    await t.engine.dismissProgress('nope', true);
+    expect(t.store.records.size).toBe(0);
+  });
+
+  it('clearProgress forgets the place everywhere', async () => {
+    const t = setup([record('b', 100), record('a', 5)]);
+    await t.engine.init();
+    await t.engine.clearProgress('b');
+    expect(t.engine.getProgress('b')).toBeUndefined();
+    expect(t.store.records.has('b')).toBe(false);
+    expect(t.engine.getProgress('a')).toBeDefined();
+  });
+
+  it('a cleared book that is loaded here stays cleared when the tab saves', async () => {
+    const t = setup([record('a', 1000)]);
+    await t.engine.init(); // 'a' is loaded, paused
+    await t.engine.clearProgress('a');
+    t.engine.flush(); // tab hidden
+    expect(t.store.records.has('a')).toBe(false);
+    expect(t.engine.getProgress('a')).toBeUndefined();
+  });
+
+  it('playing a cleared book again saves it from scratch', async () => {
+    const t = setup([record('a', 1000)]);
+    await t.engine.init();
+    await t.engine.clearProgress('a');
+    t.engine.play();
+    t.audio.becomeReady();
+    t.tick(SAVE_INTERVAL_MS);
+    expect(t.saved()).toMatchObject({ bookId: 'a' });
+  });
+
+  it('refreshProgress picks up what another tab changed, except for the book loaded here', async () => {
+    const t = setup([record('a', 5, { updatedAt: NOW }), record('b', 100)]);
+    await t.engine.init(); // the most recent unfinished book, 'a', is brought back
+    expect(t.engine.getState().book?.id).toBe('a');
+    const before = t.engine.getProgressVersion();
+
+    t.store.records.set('b', record('b', 400, { updatedAt: NOW }));
+    t.store.records.set('x', record('x', 9));
+    t.store.records.delete('a'); // another tab cleared it, but this tab has it loaded
+    await t.engine.refreshProgress();
+
+    expect(t.engine.getProgress('b')).toMatchObject({ position: 400 });
+    expect(t.engine.getProgress('x')).toBeDefined();
+    expect(t.engine.getProgress('a')).toBeDefined();
+    expect(t.engine.getProgressVersion()).toBeGreaterThan(before);
+  });
+
+  it('refreshProgress drops a book another tab cleared, and stays quiet when nothing changed', async () => {
+    const t = setup([record('b', 100)]);
+    await t.engine.init();
+    t.engine.close();
+    await t.engine.refreshProgress();
+    const before = t.engine.getProgressVersion();
+    await t.engine.refreshProgress();
+    expect(t.engine.getProgressVersion()).toBe(before);
+
+    t.store.records.delete('b');
+    await t.engine.refreshProgress();
+    expect(t.engine.getProgress('b')).toBeUndefined();
   });
 });

@@ -10,6 +10,9 @@ export function createDexieProgressStore(db: LocalDb): ProgressStore {
     put: async (record) => {
       await db.progress.put(record);
     },
+    remove: async (bookId) => {
+      await db.progress.delete(bookId);
+    },
   };
 }
 
@@ -32,5 +35,6 @@ export function createProgressStore(): ProgressStore {
   return {
     all: () => fallback((store) => store.all()),
     put: (record) => fallback((store) => store.put(record)),
+    remove: (bookId) => fallback((store) => store.remove(bookId)),
   };
 }
