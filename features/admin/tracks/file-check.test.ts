@@ -55,11 +55,13 @@ describe('checkAudioFile', () => {
     });
   });
 
-  it('refuses a file over the size limit and names the limit', () => {
+  it('takes files up to 500 MB (sent in parts above 100 MB) and refuses anything larger, naming the limit', () => {
+    expect(MAX_UPLOAD_BYTES).toBe(500 * MB);
+    expect(checkAudioFile({ name: 'a.mp3', type: '', size: 100 * MB + 1 }).ok).toBe(true);
     expect(checkAudioFile({ name: 'a.mp3', type: '', size: MAX_UPLOAD_BYTES }).ok).toBe(true);
     expect(checkAudioFile({ name: 'a.mp3', type: '', size: MAX_UPLOAD_BYTES + 1 })).toEqual({
       ok: false,
-      reason: 'The file is larger than the 100 MB limit. Split it into parts.',
+      reason: 'The file is larger than the 500 MB limit. Split it into parts.',
     });
   });
 });

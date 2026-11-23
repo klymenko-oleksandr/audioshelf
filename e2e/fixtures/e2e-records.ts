@@ -26,3 +26,32 @@ export async function removeE2eRecords(): Promise<void> {
     await sql.end({ timeout: 2 });
   }
 }
+
+/** Runs a query against the throwaway end-to-end database (never a deployment). */
+export async function withE2eSql<T>(run: (sql: postgres.Sql) => Promise<T>): Promise<T> {
+  if (TARGETS_DEPLOYMENT)
+    throw new Error('The end-to-end database is not reachable from a deployment run.');
+  const sql = postgres(`postgres://postgres:postgres@127.0.0.1:${E2E_DB_PORT}/postgres`, {
+    max: 1,
+    prepare: false,
+  });
+  try {
+    return await run(sql);
+  } finally {
+    await sql.end({ timeout: 2 });
+  }
+}
+
+/** What the fake storage (scripts/e2e-r2.mjs) did with uploads whose key contains `contains`. */
+export async function r2State(contains: string): Promise<{
+  open: number;
+  completed: number;
+  aborted: number;
+  partPuts: number;
+  objects: string[];
+}> {
+  const response = await fetch(
+    `http://127.0.0.1:54330/__state?contains=${encodeURIComponent(contains)}`,
+  );
+  return response.json();
+}

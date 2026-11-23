@@ -11,7 +11,9 @@ import {
   sizeMatches,
   trackStartSeconds,
 } from './chapters';
+import { canReorder, checkAppendOnly } from './append-only';
 import { checkAudioFile } from './file-check';
+import { planReorder } from './reorder';
 import { canTransition } from './status';
 
 const { books, tracks, chapters } = schema;
@@ -196,6 +198,15 @@ export async function restartTrackUpload(
     if (!canTransition(track.status, 'uploading')) {
       return { ok: false as const, reason: 'wrong_state' as const };
     }
+    // A published book only grows at the end: a part with a ready part after it cannot come back.
+    const siblings = await tx
+      .select({ id: tracks.id, position: tracks.position, status: tracks.status })
+      .from(tracks)
+      .where(eq(tracks.bookId, book.id));
+    const placement = checkAppendOnly(book.status, siblings, track.id);
+    if (!placement.ok) {
+      return { ok: false as const, reason: 'wrong_state' as const, message: placement.message };
+    }
     const key = trackKey({
       bookSlug: book.slug,
       number: track.position,
@@ -292,10 +303,13 @@ export async function completeTrackUpload(
     return { ok: false, reason: 'failed', message };
   }
 
-  await db.transaction(async (tx) => {
+  const refused = await db.transaction(async (tx) => {
     const book = await lockBook(tx, claimed.bookId);
-    if (!book) return;
+    if (!book) return null;
     const trackRows = await tx.select().from(tracks).where(eq(tracks.bookId, book.id));
+    // The book may have been published since this part started: it must not push existing chapters.
+    const placement = checkAppendOnly(book.status, trackRows, id);
+    if (!placement.ok) return placement.message;
     // `claimed` is still `processing` in the list; it joins the timeline now.
     const asReady = trackRows.map((t) => (t.id === id ? { ...t, status: 'ready' as const } : t));
     const start = trackStartSeconds(asReady, id);
@@ -323,18 +337,27 @@ export async function completeTrackUpload(
       .where(eq(tracks.id, id));
     await renumberChapters(tx, book.id);
     await syncBookDuration(tx, book.id);
+    return null;
   });
+  if (refused) {
+    await markFailed(db, id, refused);
+    return { ok: false, reason: 'failed', message: refused };
+  }
   return { ok: true };
 }
 
-/** Chapters are numbered 1, 2, 3… in book-time order. */
+/**
+ * Chapters are numbered 1, 2, 3… in book-time order. Only a chapter whose number actually changes
+ * is written, so adding a part to the end of a book never touches the chapters already there.
+ */
 async function renumberChapters(tx: Tx, bookId: string) {
   const rows = await tx
-    .select({ id: chapters.id })
+    .select({ id: chapters.id, position: chapters.position })
     .from(chapters)
     .where(eq(chapters.bookId, bookId))
     .orderBy(asc(chapters.startSeconds), asc(chapters.createdAt));
   for (const [index, row] of rows.entries()) {
+    if (row.position === index + 1) continue;
     await tx
       .update(chapters)
       .set({ position: index + 1 })
@@ -434,4 +457,77 @@ export async function removeTrack(db: AdminDb, trackId: string): Promise<RemoveR
     }
     return { ok: true as const };
   });
+}
+
+export type ReorderResult =
+  { ok: true } | { ok: false; reason: 'missing' | 'published' | 'mismatch' };
+
+/**
+ * Puts the parts of a draft in a new order: positions become 1..N and the chapters are rebuilt
+ * from the new timeline, each keeping its title where it still maps to the same part. The book
+ * length does not change. Published and scheduled books are never reordered.
+ */
+export async function reorderTracks(
+  db: AdminDb,
+  bookId: string,
+  orderedIds: string[],
+): Promise<ReorderResult> {
+  if (!isUuid(bookId)) return { ok: false, reason: 'missing' };
+  if (!orderedIds.every(isUuid)) return { ok: false, reason: 'mismatch' };
+  const order = orderedIds.map((id) => id.toLowerCase());
+
+  return db.transaction(async (tx) => {
+    const book = await lockBook(tx, bookId.toLowerCase());
+    if (!book) return { ok: false as const, reason: 'missing' as const };
+    if (!canReorder(book.status)) return { ok: false as const, reason: 'published' as const };
+
+    const trackRows = await tx.select().from(tracks).where(eq(tracks.bookId, book.id));
+    const chapterRows = await tx.select().from(chapters).where(eq(chapters.bookId, book.id));
+    const plan = planReorder(trackRows, chapterRows, order);
+    if (!plan.ok) return { ok: false as const, reason: 'mismatch' as const };
+    if (!plan.changed) return { ok: true as const };
+
+    for (const { id, position } of plan.positions) {
+      await tx.update(tracks).set({ position, updatedAt: new Date() }).where(eq(tracks.id, id));
+    }
+    await tx.delete(chapters).where(eq(chapters.bookId, book.id));
+    if (plan.chapters.length > 0) {
+      await tx
+        .insert(chapters)
+        .values(plan.chapters.map((c, index) => ({ bookId: book.id, position: index + 1, ...c })));
+    }
+    await syncBookDuration(tx, book.id);
+    return { ok: true as const };
+  });
+}
+
+export interface UploadingTrack {
+  key: string;
+  sizeBytes: number;
+  mimeType: string;
+}
+
+/**
+ * The object a part is being uploaded to, for the multipart steps: only a part of this book that
+ * is still `uploading`, so a request cannot touch another book's file or one already finished.
+ */
+export async function getUploadingTrack(
+  db: AdminDb,
+  bookId: string,
+  trackId: string,
+): Promise<UploadingTrack | null> {
+  if (!isUuid(bookId) || !isUuid(trackId)) return null;
+  const [row] = await db
+    .select({ key: tracks.r2Key, sizeBytes: tracks.sizeBytes, mimeType: tracks.mimeType })
+    .from(tracks)
+    .where(
+      and(
+        eq(tracks.id, trackId.toLowerCase()),
+        eq(tracks.bookId, bookId.toLowerCase()),
+        eq(tracks.status, 'uploading'),
+      ),
+    );
+  return row && row.sizeBytes
+    ? { key: row.key, sizeBytes: row.sizeBytes, mimeType: row.mimeType }
+    : null;
 }

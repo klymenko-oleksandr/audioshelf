@@ -1,13 +1,24 @@
 'use client';
 
-import { RiDeleteBinLine, RiRestartLine, RiUpload2Line } from '@remixicon/react';
+import {
+  RiArrowDownLine,
+  RiArrowUpLine,
+  RiCloseLine,
+  RiDeleteBinLine,
+  RiRestartLine,
+  RiUpload2Line,
+} from '@remixicon/react';
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import {
+  abortMultipartUploadAction,
+  completeMultipartUploadAction,
   completeTrackUploadAction,
   failTrackUploadAction,
+  getPartUrlsAction,
   removeTrackAction,
   renameChapterAction,
   renameTrackAction,
+  reorderTracksAction,
   restartTrackUploadAction,
   startTrackUploadAction,
 } from '@/app/(admin)/admin/(panel)/books/[id]/track-actions';
@@ -16,6 +27,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Spinner } from '@/components/ui/spinner';
 import type { TrackActionResult, TracksSnapshot } from '../tracks/action-types';
+import { canReorder, checkAppendOnly } from '../tracks/append-only';
+import { MAX_UPLOAD_BYTES } from '../tracks/file-check';
 import { uploadFile, type Phase, type UploadApi } from '../tracks/client/upload-file';
 import type { TrackItem } from '../tracks/data';
 import { formatClock, formatFileSize } from '../tracks/format';
@@ -100,6 +113,7 @@ export function AudioTracksCard({
   const running = useRef(false);
   const fileInput = useRef<HTMLInputElement>(null);
   const retryFor = useRef<string | undefined>(undefined);
+  const controller = useRef<AbortController | null>(null);
 
   const api: UploadApi = useMemo(
     () => ({
@@ -107,6 +121,11 @@ export function AudioTracksCard({
       restart: (trackId, input) => restartTrackUploadAction(bookId, trackId, input),
       fail: (trackId, reason) => failTrackUploadAction(bookId, trackId, reason),
       complete: (trackId) => completeTrackUploadAction(bookId, trackId),
+      partUrls: (trackId, uploadId) => getPartUrlsAction(bookId, trackId, uploadId),
+      completeMultipart: (trackId, uploadId, parts) =>
+        completeMultipartUploadAction(bookId, trackId, uploadId, parts),
+      abortMultipart: (trackId, uploadId, reason) =>
+        abortMultipartUploadAction(bookId, trackId, uploadId, reason),
     }),
     [bookId],
   );
@@ -126,11 +145,17 @@ export function AudioTracksCard({
     try {
       for (let job = queue.current.shift(); job; job = queue.current.shift()) {
         let activeTrack: string | null = job.retryTrackId ?? null;
+        const abort = new AbortController();
+        controller.current = abort;
+        // A published book only grows at the end, so after a failure the rest of the batch waits:
+        // otherwise a later file could be added behind the failed one and the order would be lost.
+        let stopBatch = false;
         try {
           const outcome = await uploadFile({
             file: job.file,
             api,
             retryTrackId: job.retryTrackId,
+            signal: abort.signal,
             onSnapshot: setSnapshot,
             onPhase: (phase, fraction, trackId) => {
               if (trackId) {
@@ -146,11 +171,19 @@ export function AudioTracksCard({
             setRejected((current) => [...current, { name: job.file.name, reason: outcome.reason }]);
           } else if (outcome.kind === 'refused') {
             setNotice(outcome.message);
+            stopBatch = true;
+          } else if (outcome.cancelled) {
+            queue.current.length = 0;
+            setNotice(`${job.file.name}: upload cancelled.`);
+          } else if (outcome.message) {
+            stopBatch = true;
           }
         } catch (error) {
           console.error('Upload failed', error);
           setNotice(`${job.file.name}: something went wrong. Try again.`);
+          stopBatch = true;
         } finally {
+          controller.current = null;
           setPreparing(null);
           const done = activeTrack;
           if (done) {
@@ -160,6 +193,13 @@ export function AudioTracksCard({
               return rest;
             });
           }
+        }
+        if (stopBatch && bookStatus !== 'draft' && queue.current.length > 0) {
+          const skipped = queue.current.length;
+          queue.current.length = 0;
+          setNotice(
+            `A part failed, so ${skipped} more ${skipped === 1 ? 'file was' : 'files were'} not added. Retry the failed part, then add the rest, so the parts stay in order.`,
+          );
         }
       }
     } finally {
@@ -200,6 +240,19 @@ export function AudioTracksCard({
     applyResult(await removeTrackAction(bookId, trackId));
   }
 
+  async function move(index: number, by: -1 | 1) {
+    const ids = snapshot.tracks.map((track) => track.id);
+    const target = index + by;
+    if (target < 0 || target >= ids.length) return;
+    [ids[index], ids[target]] = [ids[target]!, ids[index]!];
+    applyResult(await reorderTracksAction(bookId, ids));
+  }
+
+  function cancelUpload() {
+    queue.current.length = 0;
+    controller.current?.abort();
+  }
+
   function openPicker(retryTrackId?: string) {
     retryFor.current = retryTrackId;
     fileInput.current?.click();
@@ -215,7 +268,9 @@ export function AudioTracksCard({
             Audio tracks
           </h2>
           <p className="text-muted-foreground text-xs">
-            MP3 or M4A, up to 100 MB each. Parts play in the order listed.
+            {`MP3 or M4A, up to ${MAX_UPLOAD_BYTES / (1024 * 1024)} MB each (files over 100 MB are sent in parts). Parts play in the order listed.`}
+            {bookStatus !== 'draft' &&
+              ' New parts are added at the end; the existing parts and chapters do not change.'}
           </p>
         </div>
         <Button type="button" variant="outline" onClick={() => openPicker()}>
@@ -273,7 +328,10 @@ export function AudioTracksCard({
               !progress &&
               track.status !== 'processing' &&
               (track.status !== 'ready' || bookStatus === 'draft');
-            const canRetry = !progress && (track.status === 'failed' || interrupted);
+            const placement = checkAppendOnly(bookStatus, tracks, track.id);
+            const canRetry =
+              !progress && (track.status === 'failed' || interrupted) && placement.ok;
+            const canMove = canReorder(bookStatus) && tracks.length > 1;
             return (
               <li
                 key={track.id}
@@ -302,6 +360,30 @@ export function AudioTracksCard({
                   )}
                   {track.status === 'uploading' && (
                     <Badge variant="outline">{interrupted ? 'Interrupted' : 'Uploading'}</Badge>
+                  )}
+                  {canMove && (
+                    <>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        aria-label={`Move part ${number} up`}
+                        disabled={index === 0 || working}
+                        onClick={() => void move(index, -1)}
+                      >
+                        <RiArrowUpLine aria-hidden />
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        aria-label={`Move part ${number} down`}
+                        disabled={index === tracks.length - 1 || working}
+                        onClick={() => void move(index, 1)}
+                      >
+                        <RiArrowDownLine aria-hidden />
+                      </Button>
+                    </>
                   )}
                   {canRetry && (
                     <Button type="button" variant="outline" onClick={() => openPicker(track.id)}>
@@ -335,9 +417,20 @@ export function AudioTracksCard({
                 </p>
 
                 {progress && (
-                  <div className="pl-8">
-                    <Progress live={progress} />
+                  <div className="flex items-end gap-2 pl-8">
+                    <div className="grow">
+                      <Progress live={progress} />
+                    </div>
+                    {progress.phase === 'sending' && (
+                      <Button type="button" variant="ghost" onClick={cancelUpload}>
+                        <RiCloseLine aria-hidden />
+                        Cancel
+                      </Button>
+                    )}
                   </div>
+                )}
+                {!placement.ok && (track.status === 'failed' || interrupted) && (
+                  <p className="text-muted-foreground pl-8 text-xs">{placement.message}</p>
                 )}
                 {track.status === 'failed' && track.failureReason && (
                   <p className="text-destructive pl-8 text-xs">{track.failureReason}</p>

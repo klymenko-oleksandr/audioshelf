@@ -3,10 +3,10 @@ import type { AudioExtension } from '@/lib/r2/keys';
 const MB = 1024 * 1024;
 
 /**
- * The largest file one upload takes. Phase 4c-1 sends a file in one request; the multipart
- * upload for bigger files (up to 500 MB) comes in 4c-2 and raises this.
+ * The largest file the admin can add. Up to 100 MB it goes in one request; above that it is
+ * sent in parts (`multipart.ts`).
  */
-export const MAX_UPLOAD_BYTES = 100 * MB;
+export const MAX_UPLOAD_BYTES = 500 * MB;
 
 const MIME_BY_EXT: Record<AudioExtension, { mimeType: string; accepts: string[] }> = {
   mp3: { mimeType: 'audio/mpeg', accepts: ['audio/mpeg', 'audio/mp3'] },
