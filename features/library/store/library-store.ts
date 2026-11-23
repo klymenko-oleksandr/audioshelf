@@ -2,7 +2,7 @@ import type { EntityTable } from 'dexie';
 import type { LocalDb } from '@/lib/local-db/db';
 import { getDeviceId } from '@/lib/local-db/device';
 import type { FlagRecord, HistoryRecord } from '@/lib/local-db/types';
-import { addFlag, isLive, liveFlags, removeFlag } from './flags';
+import { addFlag, isLive, liveFlags, removeFlag, restoreFlag } from './flags';
 import { liveHistory, recordFinish, recordStart, removeHistory } from './history';
 
 export interface FlagStore {
@@ -10,6 +10,11 @@ export interface FlagStore {
   add(bookId: string): Promise<FlagRecord>;
   /** Remove with a tombstone. `false` when the book was not in. */
   remove(bookId: string): Promise<boolean>;
+  /**
+   * Undo of a removal: the same row, back in, with the `addedAt` of `previous` and a fresh
+   * `updatedAt`. No-op when the book is in already.
+   */
+  restore(previous: FlagRecord): Promise<FlagRecord>;
   has(bookId: string): Promise<boolean>;
   /** Live rows, most recently added first. */
   list(): Promise<FlagRecord[]>;
@@ -40,8 +45,9 @@ export interface LibraryStoreOptions {
 /**
  * Typed access to the guest's likes, Listen later and history (ADR 4: local-first). Every
  * write is one read-modify-write in a transaction, stamped with `updatedAt` and this
- * device's id. The pure rules live in `flags.ts` and `history.ts`. The UI arrives in 5b–5c;
- * writing to the server is Phase 6 (no outbox yet).
+ * device's id. The pure rules live in `flags.ts` and `history.ts`. Likes and Listen later
+ * have a UI since 5b (`features/library/flags`), History arrives in 5c; writing to the
+ * server is Phase 6 (no outbox yet).
  */
 export function createLibraryStore(db: LocalDb, options: LibraryStoreOptions = {}): LibraryStore {
   const now = options.now ?? Date.now;
@@ -64,6 +70,15 @@ export function createLibraryStore(db: LocalDb, options: LibraryStoreOptions = {
           if (!tombstone) return false;
           await table.put(tombstone);
           return true;
+        });
+      },
+      async restore(previous) {
+        const deviceId = await getDeviceId(db);
+        return db.transaction('rw', table, async () => {
+          const existing = await table.get(previous.bookId);
+          const next = restoreFlag(existing, previous, now(), deviceId);
+          if (next !== existing) await table.put(next);
+          return next;
         });
       },
       has: async (bookId) => isLive(await table.get(bookId)),

@@ -1,7 +1,9 @@
 'use client';
 
 import {
+  RiCheckLine,
   RiDownload2Line,
+  RiHeartFill,
   RiHeartLine,
   RiPauseFill,
   RiPlayFill,
@@ -15,6 +17,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from '@/components/ui/toast';
+import { useBookFlags } from '@/features/library/flags/use-library-flags';
 import { useDurationLabel } from '@/features/player/components/use-duration-label';
 import { chapterIndexAt, formatClock, isFinished } from '@/features/player/core';
 import { playBook } from '@/features/player/play-book';
@@ -39,7 +42,8 @@ const underlined = 'underline underline-offset-3';
  * stacks and centres when narrow; About is a tab when narrow and a side column when wide.
  *
  * It gets the page data (no tracks). Pressing Play or a chapter loads the tracks.
- * Like, Listen later, Download and Reviews are not built yet and say so.
+ * Like and Listen later are live (saved on this device); Download and Reviews are not built yet
+ * and say so.
  */
 export function BookDetail({ book, initialTab }: { book: BookDetailData; initialTab: BookTab }) {
   const t = useTranslations('book');
@@ -72,6 +76,7 @@ export function BookDetail({ book, initialTab }: { book: BookDetailData; initial
   const pct = percentListened(position, duration);
   const author = book.author?.name ?? '';
   const failed = { failed: t('playFailed') };
+  const flags = useBookFlags(book.id);
   const soon = () => toast({ title: t('comingSoon') });
   const share = useShare();
   const onShare = () => share({ title: book.title, path: `/book/${book.slug}` });
@@ -199,12 +204,31 @@ export function BookDetail({ book, initialTab }: { book: BookDetailData; initial
 
             {/* Wide: outline buttons beside Play (canvas: Book). */}
             <div className="hidden flex-wrap items-center gap-2 @2xl:flex">
-              <Button variant="outline" size="icon-lg" aria-label={t('like')} onClick={soon}>
-                <RiHeartLine aria-hidden />
+              <Button
+                variant="outline"
+                size="icon-lg"
+                aria-label={flags.liked ? t('unlike') : t('like')}
+                aria-pressed={flags.liked}
+                onClick={flags.toggleLike}
+              >
+                {flags.liked ? (
+                  <RiHeartFill aria-hidden className="text-brand" />
+                ) : (
+                  <RiHeartLine aria-hidden />
+                )}
               </Button>
-              <Button variant="outline" size="lg" onClick={soon}>
-                <RiPlayListAddLine aria-hidden />
-                {t('listenLater')}
+              <Button
+                variant="outline"
+                size="lg"
+                aria-pressed={flags.listenLater}
+                onClick={flags.toggleListenLater}
+              >
+                {flags.listenLater ? (
+                  <RiCheckLine aria-hidden className="text-brand" />
+                ) : (
+                  <RiPlayListAddLine aria-hidden />
+                )}
+                {flags.listenLater ? t('inListenLater') : t('listenLater')}
               </Button>
               <Button variant="outline" size="lg" onClick={soon}>
                 <RiDownload2Line aria-hidden />
@@ -217,21 +241,36 @@ export function BookDetail({ book, initialTab }: { book: BookDetailData; initial
 
             {/* Narrow: four icon buttons with captions under Play (canvas: MBook). */}
             <div className="flex justify-between @2xl:hidden">
-              {(
-                [
-                  [RiHeartLine, t('like'), soon],
-                  [RiPlayListAddLine, t('laterShort'), soon],
-                  [RiDownload2Line, t('offlineShort'), soon],
-                  [RiShareForwardLine, t('share'), onShare],
-                ] as const
-              ).map(([Icon, label, onClick]) => (
+              {[
+                {
+                  key: 'like',
+                  Icon: flags.liked ? RiHeartFill : RiHeartLine,
+                  label: flags.liked ? t('liked') : t('like'),
+                  onClick: flags.toggleLike,
+                  pressed: flags.liked,
+                },
+                {
+                  key: 'later',
+                  Icon: flags.listenLater ? RiCheckLine : RiPlayListAddLine,
+                  label: t('laterShort'),
+                  onClick: flags.toggleListenLater,
+                  pressed: flags.listenLater,
+                },
+                { key: 'offline', Icon: RiDownload2Line, label: t('offlineShort'), onClick: soon },
+                { key: 'share', Icon: RiShareForwardLine, label: t('share'), onClick: onShare },
+              ].map(({ key, Icon, label, onClick, pressed }) => (
                 <button
-                  key={label}
+                  key={key}
                   type="button"
                   onClick={onClick}
+                  aria-pressed={pressed}
                   className="text-muted-foreground flex min-h-14 w-18 flex-col items-center gap-0.5 rounded-md py-1 text-[11px]"
                 >
-                  <Icon size={24} aria-hidden className="text-foreground" />
+                  <Icon
+                    size={24}
+                    aria-hidden
+                    className={pressed ? 'text-brand' : 'text-foreground'}
+                  />
                   {label}
                 </button>
               ))}

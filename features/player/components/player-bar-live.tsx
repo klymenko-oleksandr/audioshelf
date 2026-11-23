@@ -1,6 +1,7 @@
 'use client';
 
 import { useTranslations } from 'next-intl';
+import { useBookFlags } from '@/features/library/flags/use-library-flags';
 import { useSettings } from '@/features/settings/use-settings';
 import { useDelayedLoading } from '@/hooks/use-delayed-loading';
 import { formatClock, formatRemaining, formatSpeed, isWaiting, splitDuration } from '../core';
@@ -16,6 +17,7 @@ export function PlayerBarLive() {
   const state = usePlayerState();
   const spinnerVisible = useDelayedLoading(isWaiting(state.status));
   const { book, position, duration, chapterIndex, speed, status, sleep } = state;
+  const flags = useBookFlags(book?.id ?? '');
 
   if (!book) return <PlayerBarView state="idle" />;
 
@@ -62,6 +64,8 @@ export function PlayerBarLive() {
       onSpeed={() => openSheet('speed')}
       onSleepTimer={() => openSheet('sleep')}
       onChapters={() => openSheet('chapters')}
+      liked={flags.liked}
+      onToggleLike={flags.toggleLike}
     />
   );
 }

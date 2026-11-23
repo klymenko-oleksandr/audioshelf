@@ -218,6 +218,13 @@
     "listened": "Прослухано {pct}% · {duration}",
     "ongoing": "Триває"
   },
+  "flags": {
+    "likeAdded": "Додано до вподобаних",
+    "likeRemoved": "Прибрано з вподобаних",
+    "laterAdded": "Додано до «Послухати пізніше»",
+    "laterRemoved": "Прибрано з «Послухати пізніше»",
+    "undo": "Скасувати"
+  },
   "common": {
     "durationHm": "{hours} год {minutes} хв",
     "durationM": "{minutes} хв",
@@ -242,6 +249,9 @@
     "like": "Вподобати",
     "listenLater": "Послухати пізніше",
     "laterShort": "Пізніше",
+    "liked": "Вподобано",
+    "unlike": "Прибрати вподобання",
+    "inListenLater": "У «Послухати пізніше»",
     "download": "Завантажити",
     "offlineShort": "Офлайн",
     "share": "Поділитися",

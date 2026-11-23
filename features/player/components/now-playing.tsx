@@ -4,6 +4,8 @@ import {
   RiArrowDownSLine,
   RiEqualizerLine,
   RiErrorWarningLine,
+  RiHeartFill,
+  RiHeartLine,
   RiPauseFill,
   RiPlayFill,
   RiPlayList2Line,
@@ -40,6 +42,7 @@ import {
   SLEEP_MINUTE_OPTIONS,
   SPEED_PRESETS,
 } from '../core';
+import { useBookFlags } from '@/features/library/flags/use-library-flags';
 import { useSettings } from '@/features/settings/use-settings';
 import { getPlayer, usePlayerState } from '../player';
 import { closeNowPlaying, openSheet, useNowPlayingOpen } from '../ui/player-ui';
@@ -109,7 +112,7 @@ function Action({
  *
  * Its scrubber is chapter-scoped (the bar's is book-scoped); the book position sits below.
  * From 1024 px the speed presets and the sleep menu are inline instead of sheets.
- * Bookmarks, text and like join the actions row with their features.
+ * Bookmarks and text join the actions row with their features.
  */
 export function NowPlaying() {
   const t = useTranslations('player');
@@ -119,6 +122,8 @@ export function NowPlaying() {
   const spinnerVisible = useDelayedLoading(isWaiting(state.status));
   const duration = useDurationLabel();
   const { book, position, chapterIndex, speed, status, sleep } = state;
+  const flags = useBookFlags(book?.id ?? '');
+  const Heart = flags.liked ? RiHeartFill : RiHeartLine;
   const open = hashOpen && book !== null;
 
   const view = viewState(status, spinnerVisible);
@@ -175,20 +180,36 @@ export function NowPlaying() {
                 />
               </div>
 
-              <div className="flex w-full flex-col items-center gap-1 text-center">
-                <h2 data-testid="chapter-title" className="text-h3 md:text-h2 line-clamp-2">
-                  {status === 'finished' ? finishedLabel : (chapter?.title ?? book.title)}
-                </h2>
-                <SheetDescription className="text-[13px]">
-                  {[
-                    chapter
-                      ? t('chapterOf', { number: chapterIndex + 1, count: book.chapters.length })
-                      : undefined,
-                    book.author,
-                  ]
-                    .filter(Boolean)
-                    .join(' · ')}
-                </SheetDescription>
+              {/* Phone: the heart sits beside the title (canvas: MNowPlaying); desktop has it in the row below. */}
+              <div className="grid w-full grid-cols-[44px_minmax(0,1fr)_44px] items-center gap-2 lg:grid-cols-1">
+                <span aria-hidden className="lg:hidden" />
+                <div className="flex min-w-0 flex-col items-center gap-1 text-center">
+                  <h2 data-testid="chapter-title" className="text-h3 md:text-h2 line-clamp-2">
+                    {status === 'finished' ? finishedLabel : (chapter?.title ?? book.title)}
+                  </h2>
+                  <SheetDescription className="text-[13px]">
+                    {[
+                      chapter
+                        ? t('chapterOf', { number: chapterIndex + 1, count: book.chapters.length })
+                        : undefined,
+                      book.author,
+                    ]
+                      .filter(Boolean)
+                      .join(' · ')}
+                  </SheetDescription>
+                </div>
+                <button
+                  type="button"
+                  aria-label={flags.liked ? t('unlike') : t('like')}
+                  aria-pressed={flags.liked}
+                  onClick={flags.toggleLike}
+                  className={cn(
+                    'grid size-11 place-items-center rounded-full lg:hidden',
+                    flags.liked ? 'text-brand' : 'text-foreground',
+                  )}
+                >
+                  <Heart size={24} aria-hidden />
+                </button>
               </div>
 
               <div className="flex w-full flex-col">
@@ -380,6 +401,16 @@ export function NowPlaying() {
                 <Button variant="secondary" size="sm" onClick={() => openSheet('chapters')}>
                   <RiPlayList2Line aria-hidden />
                   {t('chapters')}
+                </Button>
+
+                <Button
+                  variant="outline"
+                  size="icon-sm"
+                  aria-label={flags.liked ? t('unlike') : t('like')}
+                  aria-pressed={flags.liked}
+                  onClick={flags.toggleLike}
+                >
+                  <Heart aria-hidden className={flags.liked ? 'text-brand' : undefined} />
                 </Button>
               </div>
             </div>

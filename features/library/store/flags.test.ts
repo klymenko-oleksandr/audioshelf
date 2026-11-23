@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { FlagRecord } from '@/lib/local-db/types';
-import { addFlag, isLive, liveFlags, removeFlag } from './flags';
+import { addFlag, isLive, liveFlags, removeFlag, restoreFlag } from './flags';
 
 const live = (bookId: string, addedAt: number): FlagRecord => ({
   bookId,
@@ -46,6 +46,45 @@ describe('removeFlag', () => {
   it('does nothing when there is no record or it is already removed', () => {
     expect(removeFlag(undefined, 300, 'd1')).toBeUndefined();
     expect(removeFlag({ ...live('b1', 1), deletedAt: 2 }, 300, 'd1')).toBeUndefined();
+  });
+});
+
+describe('restoreFlag (Undo of a removal)', () => {
+  const before = live('b1', 100);
+
+  it('brings the book back with its original addedAt, so it keeps its place in the list', () => {
+    const tombstone = removeFlag(before, 300, 'd1')!;
+    const restored = restoreFlag(tombstone, before, 400, 'd2');
+    expect(restored).toEqual({ bookId: 'b1', addedAt: 100, updatedAt: 400, deviceId: 'd2' });
+    expect('deletedAt' in restored).toBe(false);
+  });
+
+  it('is newer than the removal it undoes (last write wins when Phase 6 syncs)', () => {
+    const tombstone = removeFlag(before, 300, 'd1')!;
+    expect(restoreFlag(tombstone, before, 301, 'd1').updatedAt).toBeGreaterThan(
+      tombstone.updatedAt,
+    );
+  });
+
+  it('works when the row is missing altogether', () => {
+    expect(restoreFlag(undefined, before, 400, 'd1')).toEqual({
+      bookId: 'b1',
+      addedAt: 100,
+      updatedAt: 400,
+      deviceId: 'd1',
+    });
+  });
+
+  it('leaves a row that is live again exactly as it is (nothing to undo)', () => {
+    const current = live('b1', 250);
+    expect(restoreFlag(current, before, 400, 'd1')).toBe(current);
+  });
+
+  it('ignores a tombstone mark on the record it restores from', () => {
+    const tombstone = removeFlag(before, 300, 'd1')!;
+    const restored = restoreFlag(tombstone, tombstone, 400, 'd1');
+    expect(restored.addedAt).toBe(100);
+    expect('deletedAt' in restored).toBe(false);
   });
 });
 

@@ -1,14 +1,15 @@
 'use client';
 
-import { RiHeartLine, RiPlayFill } from '@remixicon/react';
+import { RiHeartFill, RiHeartLine, RiPlayFill } from '@remixicon/react';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import type { ReactNode } from 'react';
-import { toast } from '@/components/ui/toast';
+import { cn } from '@/lib/utils';
 import { BookCover } from '@/features/catalogue/components/book-cover';
 import { ProgressLine } from '@/features/catalogue/components/progress-line';
 import type { SearchBook } from '@/features/catalogue/data';
 import { chapterIndexFor, percentListened } from '@/features/catalogue/progress';
+import { useBookFlags } from '@/features/library/flags/use-library-flags';
 import { useDurationLabel } from '@/features/player/components/use-duration-label';
 import { playBook } from '@/features/player/play-book';
 import { useBookProgress } from '@/features/player/player';
@@ -30,17 +31,23 @@ export function RecordSearch({ query, children }: { query: string; children: Rea
   );
 }
 
-/** Likes arrive in Phase 5; the heart is on the row as on the canvas and says so. */
-export function RowLikeButton() {
-  const t = useTranslations();
+/** The heart on a result row (canvas: Search, MSearchResults): filled and green when liked. */
+export function RowLikeButton({ bookId }: { bookId: string }) {
+  const t = useTranslations('bookCard');
+  const { liked, toggleLike } = useBookFlags(bookId);
+  const Heart = liked ? RiHeartFill : RiHeartLine;
   return (
     <button
       type="button"
-      aria-label={t('bookCard.like')}
-      onClick={() => toast({ title: t('book.comingSoon') })}
-      className="text-muted-foreground grid size-11 shrink-0 place-items-center rounded-full md:size-8"
+      aria-label={t(liked ? 'unlike' : 'like')}
+      aria-pressed={liked}
+      onClick={toggleLike}
+      className={cn(
+        'grid size-11 shrink-0 place-items-center rounded-full md:size-8',
+        liked ? 'text-brand' : 'text-muted-foreground',
+      )}
     >
-      <RiHeartLine size={20} aria-hidden className="md:size-[18px]" />
+      <Heart size={20} aria-hidden className="md:size-[18px]" />
     </button>
   );
 }

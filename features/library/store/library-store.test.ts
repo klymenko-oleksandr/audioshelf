@@ -62,6 +62,34 @@ describe.each([['likes'], ['listenLater']] as const)('%s', (which) => {
     expect((await db[which].get('a'))?.deletedAt).toBeUndefined();
   });
 
+  it('restore() undoes a removal on the same row, keeping the original addedAt and place in the list', async () => {
+    const { db, store } = setup();
+    const flags = store[which];
+    const first = await flags.add('a');
+    await flags.add('b');
+    await flags.remove('a');
+    const rowCount = await db[which].count();
+
+    const restored = await flags.restore(first);
+
+    expect(restored.addedAt).toBe(first.addedAt);
+    expect(restored.updatedAt).toBeGreaterThan(first.updatedAt);
+    expect(await db[which].count()).toBe(rowCount); // the same row, not a new one
+    expect((await db[which].get('a'))?.deletedAt).toBeUndefined();
+    expect((await flags.list()).map((r) => r.bookId)).toEqual(['b', 'a']);
+  });
+
+  it('restore() stamps this device and does nothing to a row that is already live', async () => {
+    const { db, store } = setup();
+    const flags = store[which];
+    const first = await flags.add('a');
+    const again = await flags.restore(first);
+    expect(again).toEqual(first);
+    await flags.remove('a');
+    const back = await flags.restore(first);
+    expect(back.deviceId).toBe(await getDeviceId(db));
+  });
+
   it('adding twice keeps one row and does not move it', async () => {
     const { store } = setup();
     const flags = store[which];

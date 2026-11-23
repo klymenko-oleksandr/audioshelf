@@ -218,6 +218,13 @@
     "listened": "{pct}% listened · {duration}",
     "ongoing": "Ongoing"
   },
+  "flags": {
+    "likeAdded": "Added to Liked",
+    "likeRemoved": "Removed from Liked",
+    "laterAdded": "Added to Listen later",
+    "laterRemoved": "Removed from Listen later",
+    "undo": "Undo"
+  },
   "common": {
     "durationHm": "{hours} h {minutes} m",
     "durationM": "{minutes} m",
@@ -242,6 +249,9 @@
     "like": "Like",
     "listenLater": "Listen later",
     "laterShort": "Later",
+    "liked": "Liked",
+    "unlike": "Unlike",
+    "inListenLater": "In Listen later",
     "download": "Download",
     "offlineShort": "Offline",
     "share": "Share",

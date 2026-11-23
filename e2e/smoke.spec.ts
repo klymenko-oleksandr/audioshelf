@@ -766,7 +766,7 @@ test.describe('catalogue', () => {
     await expect(main.getByRole('tab', { name: /Reviews/ })).toContainText('Soon');
 
     // Features that are not built yet say so instead of doing nothing.
-    await main.getByRole('button', { name: 'Later' }).click();
+    await main.getByRole('button', { name: 'Offline' }).click();
     await expect(page.getByRole('status').getByText("This isn't available yet")).toBeVisible();
   });
 

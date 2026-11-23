@@ -91,7 +91,7 @@ function BookRow({
         {durationLabel}
       </span>
       <span className="relative">
-        <RowLikeButton />
+        <RowLikeButton bookId={book.id} />
       </span>
     </li>
   );

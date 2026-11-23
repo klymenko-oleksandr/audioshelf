@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { createStorageEventChannel, STORAGE_PING_KEY } from './channel';
+import { createBrowserChannel, createStorageEventChannel, STORAGE_PING_KEY } from './channel';
 
 afterEach(() => localStorage.clear());
 
@@ -34,6 +34,24 @@ describe('storage-event channel (browsers without BroadcastChannel)', () => {
     channel.close();
   });
 
+  it('can use its own storage key, so two features do not wake each other', () => {
+    const channel = createStorageEventChannel('audioshelf:library-ping');
+    const listener = vi.fn();
+    channel.subscribe(listener);
+
+    window.dispatchEvent(new StorageEvent('storage', { key: STORAGE_PING_KEY, newValue: '4' }));
+    expect(listener).not.toHaveBeenCalled();
+
+    channel.post();
+    expect(localStorage.getItem('audioshelf:library-ping')).not.toBeNull();
+    expect(localStorage.getItem(STORAGE_PING_KEY)).toBeNull();
+    window.dispatchEvent(
+      new StorageEvent('storage', { key: 'audioshelf:library-ping', newValue: '5' }),
+    );
+    expect(listener).toHaveBeenCalledTimes(1);
+    channel.close();
+  });
+
   it('does not throw when storage is blocked', () => {
     const original = Object.getOwnPropertyDescriptor(window, 'localStorage')!;
     Object.defineProperty(window, 'localStorage', {
@@ -47,5 +65,13 @@ describe('storage-event channel (browsers without BroadcastChannel)', () => {
     } finally {
       Object.defineProperty(window, 'localStorage', original);
     }
+  });
+});
+
+describe('posting after close', () => {
+  it('does nothing instead of throwing', () => {
+    const channel = createBrowserChannel('audioshelf-test-closed', 'audioshelf:test-closed');
+    channel.close();
+    expect(() => channel.post()).not.toThrow();
   });
 });
