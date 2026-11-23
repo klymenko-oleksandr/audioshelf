@@ -17,6 +17,8 @@ function getClient(): S3Client {
   client ??= new S3Client({
     region: process.env.S3_REGION ?? 'auto',
     endpoint: requireEnv('S3_ENDPOINT'),
+    // Only the end-to-end tests set this (a local stand-in has no bucket sub-domains).
+    forcePathStyle: process.env.S3_FORCE_PATH_STYLE === 'true',
     credentials: {
       accessKeyId: requireEnv('S3_ACCESS_KEY_ID'),
       secretAccessKey: requireEnv('S3_SECRET_ACCESS_KEY'),
