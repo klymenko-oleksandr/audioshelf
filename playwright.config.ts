@@ -31,6 +31,9 @@ export default defineConfig({
       use: { ...devices['Desktop Chrome'] },
       testMatch: /\.write\.spec\.ts$/,
       dependencies: ['chromium'],
+      // All write specs share one database and each file clears every `E2E ` record around its
+      // tests, so they take turns instead of deleting each other's books mid-test.
+      workers: 1,
     },
   ],
   // Skipped when PLAYWRIGHT_BASE_URL points at an already running deployment.
