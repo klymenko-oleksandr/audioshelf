@@ -30,6 +30,22 @@ export function removeFlag(
   return { ...existing, updatedAt: now, deviceId, deletedAt: now };
 }
 
+/**
+ * The record after Undo of a removal: the book is in again with its original `addedAt` (so it
+ * keeps its place in "recently added"), stamped as a new write so it wins over the tombstone
+ * it undoes. Same row as before, never a new one. A row that is already live is returned as
+ * it is (nothing to undo).
+ */
+export function restoreFlag(
+  existing: FlagRecord | undefined,
+  previous: FlagRecord,
+  now: number,
+  deviceId: string,
+): FlagRecord {
+  if (isLive(existing)) return existing;
+  return { bookId: previous.bookId, addedAt: previous.addedAt, updatedAt: now, deviceId };
+}
+
 /** Live records, most recently added first (ties by book id, so the order is stable). */
 export function liveFlags(records: readonly FlagRecord[]): FlagRecord[] {
   return records

@@ -2,6 +2,7 @@
 
 import { useTranslations } from 'next-intl';
 import { toast } from '@/components/ui/toast';
+import { useBookFlags } from '@/features/library/flags/use-library-flags';
 import { useDurationLabel } from '@/features/player/components/use-duration-label';
 import { useBookProgress } from '@/features/player/player';
 import { playBook } from '@/features/player/play-book';
@@ -13,12 +14,16 @@ import { BookCard } from './book-card';
 export const languageTag = (language: string) =>
   language === 'uk' ? 'UA' : language.toUpperCase();
 
-/** A catalogue book as a card, wired to the player and to this device's saved progress. */
+/**
+ * A catalogue book as a card, wired to the player, to this device's saved progress and to its
+ * likes and Listen later.
+ */
 export function CatalogueCard({ book, className }: { book: BookSummary; className?: string }) {
   const t = useTranslations('book');
   const durationLabel = useDurationLabel();
   const progress = useBookProgress(book.id);
-  // Likes and Listen later arrive in Phase 5, downloads in Phase 7.
+  const flags = useBookFlags(book.id);
+  // Downloads arrive in Phase 7.
   const soon = () => toast({ title: t('comingSoon') });
   const share = useShare();
 
@@ -41,8 +46,10 @@ export function CatalogueCard({ book, className }: { book: BookSummary; classNam
           : 0
       }
       onPlay={() => void playBook(book.id, { failed: t('playFailed') })}
-      onToggleLike={soon}
-      onToggleListenLater={soon}
+      liked={flags.liked}
+      listenLater={flags.listenLater}
+      onToggleLike={flags.toggleLike}
+      onToggleListenLater={flags.toggleListenLater}
       onToggleDownload={soon}
       onShare={() => share({ title: book.title, path: `/book/${book.slug}` })}
     />
