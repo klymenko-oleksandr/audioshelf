@@ -32,6 +32,26 @@ export function isFinished(position: number, duration: number): boolean {
   return duration - position < threshold;
 }
 
+/**
+ * Is it time to write "finished" into History (PRD: a book counts as finished when less than
+ * 30 s or 2% remain)? True at the real end, or inside that zone while the book is *playing*,
+ * so a position dragged there on a paused book does not count. Ongoing books are never
+ * finished: more parts are coming. The caller reports it once per play.
+ */
+export function historyFinishDue(input: {
+  ongoing: boolean;
+  position: number;
+  duration: number;
+  /** Playback is running (playing, buffering or loading). */
+  playing: boolean;
+  /** The book played to its last second. */
+  ended: boolean;
+}): boolean {
+  if (input.ongoing || !(input.duration > 0)) return false;
+  if (input.ended) return true;
+  return input.playing && isFinished(input.position, input.duration);
+}
+
 /** Where Play starts: the saved position, or the beginning once the book is finished. */
 export function resumePosition(saved: number | undefined, duration: number): number {
   if (saved === undefined || !Number.isFinite(saved)) return 0;

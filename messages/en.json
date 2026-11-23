@@ -134,13 +134,69 @@
       "seeAll": "See all",
       "explore": "Explore",
       "chapterOf": "Ch. {number} of {count}",
-      "pauseBook": "Pause {title}"
+      "pauseBook": "Pause {title}",
+      "removeFromContinue": "Remove from Continue listening",
+      "continueRemoved": "Removed from Continue listening",
+      "removeWhilePlaying": "Pause the book to remove it"
     },
     "explore": {
       "title": "Explore"
     },
     "library": {
-      "title": "Library"
+      "title": "Library",
+      "subtitle": "Your liked books, Listen later and everything you've played.",
+      "tabsLabel": "Library sections",
+      "tabs": {
+        "liked": "Liked",
+        "listenLater": "Listen later",
+        "history": "History"
+      },
+      "loading": "Loading your library",
+      "loadFailed": "Couldn't load your library.",
+      "retry": "Try again",
+      "count": "{count, plural, one {# book} other {# books}}",
+      "sort": {
+        "label": "Sort: {value}",
+        "open": "Sort",
+        "heading": "Sort by",
+        "options": {
+          "added": "Recently added",
+          "played": "Recently played",
+          "title": "Title (A–Z)",
+          "author": "Author (A–Z)"
+        }
+      },
+      "history": {
+        "finished": "Finished",
+        "left": "{duration} left",
+        "resume": "Resume",
+        "playAgain": "Play again",
+        "pause": "Pause",
+        "resumeLabel": "Resume {title}",
+        "playAgainLabel": "Play {title} again",
+        "pauseLabel": "Pause {title}",
+        "more": "More actions for {title}",
+        "remove": "Remove from History",
+        "removeWhilePlaying": "Pause the book to remove it",
+        "confirm": "Remove from History? Your place in this book is cleared too.",
+        "confirmRemove": "Remove",
+        "cancel": "Cancel"
+      },
+      "empty": {
+        "liked": {
+          "title": "No liked books yet",
+          "body": "Tap the heart on a cover to keep a book here."
+        },
+        "listenLater": {
+          "title": "Nothing saved for later",
+          "body": "Add a book to Listen later from its ⋯ menu and it waits here."
+        },
+        "history": {
+          "title": "Nothing here yet",
+          "body": "Press play on any book and it lands here, with your place saved. Hover a cover to like it, or add it to Listen later from the ⋯ menu."
+        },
+        "explore": "Explore books"
+      }
     },
     "downloads": {
       "title": "Downloads"

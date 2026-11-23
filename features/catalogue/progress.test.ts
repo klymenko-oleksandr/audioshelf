@@ -1,11 +1,18 @@
 import { describe, expect, it } from 'vitest';
 import { chapterIndexFor, chapterStates, percentListened, pickContinue } from './progress';
 
-const record = (bookId: string, position: number, updatedAt: number, finished = false) => ({
+const record = (
+  bookId: string,
+  position: number,
+  updatedAt: number,
+  finished = false,
+  dismissedAt?: number,
+) => ({
   bookId,
   position,
   finished,
   updatedAt,
+  ...(dismissedAt !== undefined ? { dismissedAt } : {}),
 });
 
 describe('pickContinue', () => {
@@ -20,6 +27,17 @@ describe('pickContinue', () => {
       6,
     );
     expect(picked.map((r) => r.bookId)).toEqual(['new', 'old']);
+  });
+
+  it('leaves out a book the listener removed from the row', () => {
+    const picked = pickContinue([record('a', 10, 5, false, 6), record('b', 10, 4)], 6);
+    expect(picked.map((r) => r.bookId)).toEqual(['b']);
+  });
+
+  it('brings a removed book back once it was played again (saved after the removal)', () => {
+    // The engine writes a fresh record without `dismissedAt` when playback resumes.
+    const picked = pickContinue([record('a', 20, 9)], 6);
+    expect(picked.map((r) => r.bookId)).toEqual(['a']);
   });
 
   it('respects the limit and does not reorder the input', () => {

@@ -1,14 +1,20 @@
 'use client';
 
-import { RiPauseFill, RiPlayFill } from '@remixicon/react';
+import { RiCloseLine, RiPauseFill, RiPlayFill } from '@remixicon/react';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import { useEffect, useMemo, useState } from 'react';
 import { Skeleton } from '@/components/ui/skeleton';
+import { toast } from '@/components/ui/toast';
 import { useDurationLabel } from '@/features/player/components/use-duration-label';
 import { isFinished } from '@/features/player/core';
 import { playBook } from '@/features/player/play-book';
-import { getPlayer, useAllProgress, usePlayerSelector } from '@/features/player/player';
+import {
+  announceLibraryChange,
+  getPlayer,
+  useAllProgress,
+  usePlayerSelector,
+} from '@/features/player/player';
 import { useDelayedLoading } from '@/hooks/use-delayed-loading';
 import { cn } from '@/lib/utils';
 import { knownContinueBooks, loadContinueBooks } from '../data/continue-books';
@@ -48,6 +54,22 @@ function ContinueCard({ book, position }: { book: ContinueBook; position: number
     else void playBook(book.id, { failed: t('book.playFailed') });
   };
 
+  // Hides the card only: the saved place and History stay, and playing the book brings it back.
+  const onRemove = () => {
+    const player = getPlayer();
+    void player.dismissProgress(book.id, true).then(() => {
+      announceLibraryChange();
+      toast({
+        title: t('pages.home.continueRemoved'),
+        action: {
+          label: t('flags.undo'),
+          onClick: () =>
+            void player.dismissProgress(book.id, false).then(() => announceLibraryChange()),
+        },
+      });
+    });
+  };
+
   return (
     <article
       className={cn(
@@ -62,7 +84,7 @@ function ContinueCard({ book, position }: { book: ContinueBook; position: number
         {/* The link covers the whole card; the play button sits above it. */}
         <Link
           href={`/book/${book.slug}`}
-          className="line-clamp-2 text-[13px] leading-[18px] font-semibold after:absolute after:inset-0 after:rounded-xl focus-visible:shadow-none"
+          className="line-clamp-2 pr-6 text-[13px] leading-[18px] font-semibold after:absolute after:inset-0 after:rounded-xl focus-visible:shadow-none"
         >
           {book.title}
         </Link>
@@ -84,6 +106,16 @@ function ContinueCard({ book, position }: { book: ContinueBook; position: number
           </span>
         </div>
       </div>
+      <button
+        type="button"
+        onClick={onRemove}
+        disabled={here === 'playing'}
+        title={here === 'playing' ? t('pages.home.removeWhilePlaying') : undefined}
+        aria-label={t('pages.home.removeFromContinue')}
+        className="text-muted-foreground hover:text-foreground absolute top-1 right-1 z-10 grid size-8 place-items-center rounded-full disabled:opacity-40"
+      >
+        <RiCloseLine size={16} aria-hidden />
+      </button>
       <button
         type="button"
         onClick={onPlay}

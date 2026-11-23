@@ -11,6 +11,9 @@ export interface FlagsSnapshot {
   ready: boolean;
   liked: ReadonlySet<string>;
   listenLater: ReadonlySet<string>;
+  /** When each liked / queued book was added (Library sorts "recently added" by it). */
+  likedAt: ReadonlyMap<string, number>;
+  listenLaterAt: ReadonlyMap<string, number>;
 }
 
 export interface ToggleResult {
@@ -30,7 +33,7 @@ export interface ToggleResult {
 export interface FlagsRepo {
   /** Live rows only. */
   load(): Promise<Record<FlagKind, FlagRecord[]>>;
-  add(kind: FlagKind, bookId: string): Promise<FlagRecord>;
+  add(kind: FlagKind, bookId: string, at?: number): Promise<FlagRecord>;
   remove(kind: FlagKind, bookId: string): Promise<boolean>;
   restore(kind: FlagKind, previous: FlagRecord): Promise<FlagRecord>;
 }
@@ -46,7 +49,7 @@ export function createDexieFlagsRepo(db: LocalDb, options: LibraryStoreOptions =
       ]);
       return { like, listenLater };
     },
-    add: (kind, bookId) => flags(kind).add(bookId),
+    add: (kind, bookId, at) => flags(kind).add(bookId, at),
     remove: (kind, bookId) => flags(kind).remove(bookId),
     restore: (kind, previous) => flags(kind).restore(previous),
   };
@@ -61,6 +64,8 @@ export interface FlagsStoreOptions {
 /** A change made here that storage may not have confirmed yet. */
 interface Pending {
   value: boolean;
+  /** When the book was added, while it is still unsaved (an Undo keeps the original time). */
+  addedAt?: number;
   /** Writes for this book that have not finished. */
   inFlight: number;
   /** The last write failed: the value holds for this session only. */
@@ -70,9 +75,9 @@ interface Pending {
 const KINDS: readonly FlagKind[] = ['like', 'listenLater'];
 const keyOf = (kind: FlagKind, bookId: string) => `${kind}:${bookId}`;
 
-function sameSet(a: ReadonlySet<string>, b: ReadonlySet<string>): boolean {
+function sameMap(a: ReadonlyMap<string, number>, b: ReadonlyMap<string, number>): boolean {
   if (a.size !== b.size) return false;
-  for (const value of a) if (!b.has(value)) return false;
+  for (const [key, value] of a) if (b.get(key) !== value) return false;
   return true;
 }
 
@@ -94,6 +99,8 @@ export class LibraryFlagsStore {
     ready: false,
     liked: new Set(),
     listenLater: new Set(),
+    likedAt: new Map(),
+    listenLaterAt: new Map(),
   };
   private loaded = false;
   private firstLoad: Promise<void> | null = null;
@@ -161,6 +168,17 @@ export class LibraryFlagsStore {
     };
   }
 
+  /**
+   * Take a book out of a list without a toast (a finished book leaves Listen later, PRD).
+   * `false` when it was not in. Shows at once, is saved and reaches the other tabs.
+   */
+  async remove(kind: FlagKind, bookId: string): Promise<boolean> {
+    if (!this.loaded) await this.whenReady();
+    if (!this.isOn(kind, bookId)) return false;
+    await this.apply(kind, bookId, false);
+    return true;
+  }
+
   dispose(): void {
     this.stopListening?.();
     this.options.channel?.close();
@@ -186,12 +204,14 @@ export class LibraryFlagsStore {
     const key = keyOf(kind, bookId);
     const entry = this.pending.get(key) ?? { value: on, inFlight: 0, failed: false };
     entry.value = on;
+    entry.addedAt = on ? (restoreFrom?.addedAt ?? Date.now()) : undefined;
     entry.failed = false;
     entry.inFlight += 1;
     this.pending.set(key, entry);
     this.rebuild();
 
-    const write = this.queue.then(() => this.persist(kind, bookId, on, restoreFrom));
+    const addedAt = entry.addedAt;
+    const write = this.queue.then(() => this.persist(kind, bookId, on, restoreFrom, addedAt));
     this.queue = write;
     return write;
   }
@@ -202,6 +222,7 @@ export class LibraryFlagsStore {
     bookId: string,
     on: boolean,
     restoreFrom?: FlagRecord,
+    addedAt?: number,
   ): Promise<void> {
     const key = keyOf(kind, bookId);
     const { repo, channel } = this.options;
@@ -210,7 +231,7 @@ export class LibraryFlagsStore {
       if (on) {
         const row = restoreFrom
           ? await repo.restore(kind, restoreFrom)
-          : await repo.add(kind, bookId);
+          : await repo.add(kind, bookId, addedAt);
         this.stored[kind].set(bookId, row);
       } else {
         await repo.remove(kind, bookId);
@@ -234,27 +255,37 @@ export class LibraryFlagsStore {
 
   /** Stored rows with the unsaved changes laid over them. Notifies only on a real change. */
   private rebuild(): void {
-    const sets: Record<FlagKind, Set<string>> = {
-      like: new Set(this.stored.like.keys()),
-      listenLater: new Set(this.stored.listenLater.keys()),
+    const added: Record<FlagKind, Map<string, number>> = {
+      like: new Map([...this.stored.like].map(([id, row]) => [id, row.addedAt])),
+      listenLater: new Map([...this.stored.listenLater].map(([id, row]) => [id, row.addedAt])),
     };
     for (const [key, entry] of this.pending) {
       const separator = key.indexOf(':');
       const kind = key.slice(0, separator) as FlagKind;
       const bookId = key.slice(separator + 1);
-      if (entry.value) sets[kind].add(bookId);
-      else sets[kind].delete(bookId);
+      if (entry.value) {
+        // A book already stored keeps its time; an unsaved add gets the time it was made.
+        if (!added[kind].has(bookId) || entry.addedAt !== undefined) {
+          added[kind].set(bookId, entry.addedAt ?? Date.now());
+        }
+      } else added[kind].delete(bookId);
     }
 
     const current = this.snapshot;
     if (
       current.ready === this.loaded &&
-      sameSet(current.liked, sets.like) &&
-      sameSet(current.listenLater, sets.listenLater)
+      sameMap(current.likedAt, added.like) &&
+      sameMap(current.listenLaterAt, added.listenLater)
     ) {
       return;
     }
-    this.snapshot = { ready: this.loaded, liked: sets.like, listenLater: sets.listenLater };
+    this.snapshot = {
+      ready: this.loaded,
+      liked: new Set(added.like.keys()),
+      listenLater: new Set(added.listenLater.keys()),
+      likedAt: added.like,
+      listenLaterAt: added.listenLater,
+    };
     for (const listener of this.listeners) listener();
   }
 }

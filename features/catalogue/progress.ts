@@ -8,15 +8,18 @@ interface SavedProgress {
   position: number;
   finished: boolean;
   updatedAt: number;
+  /** The listener removed the book from Continue listening at this time. */
+  dismissedAt?: number;
 }
 
 /**
- * Books for "Continue listening": started, not finished, most recent first
- * (PRD: Home — a book leaves the row when it is finished).
+ * Books for "Continue listening": started, not finished, not removed by the listener, most
+ * recent first (PRD: Home — a book leaves the row when it is finished or removed). Playing a
+ * removed book again saves a fresh record without `dismissedAt`, which brings it back.
  */
 export function pickContinue<T extends SavedProgress>(records: readonly T[], limit: number): T[] {
   return records
-    .filter((record) => !record.finished && record.position > 0)
+    .filter((record) => !record.finished && record.position > 0 && record.dismissedAt === undefined)
     .sort((a, b) => b.updatedAt - a.updatedAt)
     .slice(0, limit);
 }

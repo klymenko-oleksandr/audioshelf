@@ -6,8 +6,8 @@ import { addFlag, isLive, liveFlags, removeFlag, restoreFlag } from './flags';
 import { liveHistory, recordFinish, recordStart, removeHistory } from './history';
 
 export interface FlagStore {
-  /** Add (no-op if already in). Returns the row. */
-  add(bookId: string): Promise<FlagRecord>;
+  /** Add (no-op if already in). Returns the row. `at` is when the listener did it. */
+  add(bookId: string, at?: number): Promise<FlagRecord>;
   /** Remove with a tombstone. `false` when the book was not in. */
   remove(bookId: string): Promise<boolean>;
   /**
@@ -54,11 +54,13 @@ export function createLibraryStore(db: LocalDb, options: LibraryStoreOptions = {
 
   function flagStore(table: EntityTable<FlagRecord, 'bookId'>): FlagStore {
     return {
-      async add(bookId) {
+      async add(bookId, at) {
         const deviceId = await getDeviceId(db);
         return db.transaction('rw', table, async () => {
           const existing = await table.get(bookId);
-          const next = addFlag(existing, bookId, now(), deviceId);
+          const added = addFlag(existing, bookId, now(), deviceId);
+          // `at` is the moment the listener acted; the write itself is stamped by `now`.
+          const next = added !== existing && at !== undefined ? { ...added, addedAt: at } : added;
           if (next !== existing) await table.put(next);
           return next;
         });

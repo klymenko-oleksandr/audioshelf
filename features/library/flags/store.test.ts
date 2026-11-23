@@ -295,3 +295,68 @@ describe('LibraryFlagsStore: two tabs', () => {
     await vi.waitFor(() => expect(second.store.getSnapshot().listenLater.has('a')).toBe(false));
   });
 });
+
+describe('LibraryFlagsStore: when each book was added (Library sorts by it)', () => {
+  it('knows when a stored book was added and shows a new add at once', async () => {
+    const name = freshName();
+    const { store } = open(name);
+    await store.toggle('like', 'a');
+    const stored = store.getSnapshot().likedAt.get('a');
+    expect(typeof stored).toBe('number');
+
+    const reopened = open(name);
+    await reopened.store.load();
+    expect(reopened.store.getSnapshot().likedAt.get('a')).toBe(stored);
+    expect([...reopened.store.getSnapshot().listenLaterAt.keys()]).toEqual([]);
+  });
+
+  it('an Undo of a removal keeps the original time, even before it is saved', async () => {
+    const { store } = open(freshName());
+    await store.toggle('listenLater', 'a');
+    const original = store.getSnapshot().listenLaterAt.get('a')!;
+    const removed = await store.toggle('listenLater', 'a');
+    expect(store.getSnapshot().listenLaterAt.has('a')).toBe(false);
+
+    const undoing = removed.undo();
+    expect(store.getSnapshot().listenLaterAt.get('a')).toBe(original);
+    await undoing;
+    expect(store.getSnapshot().listenLaterAt.get('a')).toBe(original);
+  });
+});
+
+describe('LibraryFlagsStore.remove (a finished book leaves Listen later)', () => {
+  it('removes a book that is in, at once, and saves it', async () => {
+    const name = freshName();
+    const { store } = open(name);
+    await store.toggle('listenLater', 'a');
+    await store.toggle('like', 'a');
+
+    const removing = store.remove('listenLater', 'a');
+    expect(store.getSnapshot().listenLater.has('a')).toBe(false);
+    expect(await removing).toBe(true);
+
+    const reopened = open(name);
+    await reopened.store.load();
+    expect(reopened.store.getSnapshot().listenLater.has('a')).toBe(false);
+    // Liking is independent of Listen later (PRD).
+    expect(reopened.store.getSnapshot().liked.has('a')).toBe(true);
+  });
+
+  it('does nothing and says so when the book was not in', async () => {
+    const { store } = open(freshName());
+    expect(await store.remove('listenLater', 'zzz')).toBe(false);
+  });
+
+  it('reaches the other tab', async () => {
+    const name = freshName();
+    const channel = `ch-${Math.random()}`;
+    const first = open(name, { channel });
+    const second = open(name, { channel });
+    await first.store.toggle('listenLater', 'a');
+    await second.store.load();
+    expect(second.store.getSnapshot().listenLater.has('a')).toBe(true);
+
+    await first.store.remove('listenLater', 'a');
+    await vi.waitFor(() => expect(second.store.getSnapshot().listenLater.has('a')).toBe(false));
+  });
+});

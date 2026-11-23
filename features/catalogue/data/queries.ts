@@ -252,8 +252,8 @@ export async function getAuthorBySlug(db: CatalogueDb, slug: string): Promise<Au
   };
 }
 
-/** The most ids one "Continue listening" request may ask for. */
-export const MAX_BOOK_IDS = 12;
+/** The most ids one books-by-id request may ask for (Continue listening, the Library page). */
+export const MAX_BOOK_IDS = 100;
 
 /**
  * Live books by id, for "Continue listening" (the ids come from progress saved on the
