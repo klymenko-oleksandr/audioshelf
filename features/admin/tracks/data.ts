@@ -121,6 +121,14 @@ export type BeginResult =
       message?: string;
     };
 
+/** For callers that are not the admin's browser (the import): not part of what the browser sends. */
+export interface BeginOptions {
+  /** The part's name, instead of the one made from the file name. */
+  title?: string;
+  /** The part must land exactly here; refused when another part took the place meanwhile. */
+  expectPosition?: number;
+}
+
 /** Locks the book row so uploads and track changes for one book queue up instead of racing. */
 async function lockBook(tx: Tx, bookId: string) {
   const [book] = await tx
@@ -138,6 +146,7 @@ async function lockBook(tx: Tx, bookId: string) {
 export async function beginTrackUpload(
   db: AdminDb,
   input: UploadInput & { bookId: string },
+  options: BeginOptions = {},
 ): Promise<BeginResult> {
   const valid = validate(input);
   if (!valid.ok) return valid;
@@ -153,7 +162,17 @@ export async function beginTrackUpload(
       .from(tracks)
       .where(eq(tracks.bookId, book.id));
     const position = (top ?? 0) + 1;
-    const title = titleFromFilename(input.file.name) || `Part ${position}`;
+    if (options.expectPosition !== undefined && options.expectPosition !== position) {
+      return {
+        ok: false as const,
+        reason: 'wrong_state' as const,
+        message: `Part ${options.expectPosition} is no longer the next part of this book.`,
+      };
+    }
+    const title =
+      options.title?.trim().slice(0, MAX_TITLE) ||
+      titleFromFilename(input.file.name) ||
+      `Part ${position}`;
     const key = trackKey({
       bookSlug: book.slug,
       number: position,

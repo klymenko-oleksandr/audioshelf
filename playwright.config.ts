@@ -1,5 +1,10 @@
 import { defineConfig, devices } from '@playwright/test';
-import { ADMIN_PASSKEYS, ADMIN_SESSION_SECRET, ADMIN_SETUP_TOKEN } from './e2e/fixtures/admin';
+import {
+  ADMIN_IMPORT_TOKEN,
+  ADMIN_PASSKEYS,
+  ADMIN_SESSION_SECRET,
+  ADMIN_SETUP_TOKEN,
+} from './e2e/fixtures/admin';
 
 const PORT = Number(process.env.PORT ?? 3000);
 const E2E_DB_PORT = 54329;
@@ -74,6 +79,7 @@ export default defineConfig({
             ADMIN_PASSKEYS,
             ADMIN_SESSION_SECRET,
             ADMIN_SETUP_TOKEN,
+            ADMIN_IMPORT_TOKEN,
           },
         },
       ],

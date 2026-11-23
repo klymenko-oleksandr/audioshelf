@@ -95,3 +95,73 @@ describe('proxy: every response is private and unindexable', () => {
     expect(res.headers.get('vary')).toContain('Cookie');
   });
 });
+
+describe('proxy: content import (bearer token, Phase 4e)', () => {
+  const IMPORT_TOKEN = 'import-secret-'.padEnd(48, 'z');
+  const PATHS = ['/api/admin/import', '/api/admin/import/complete'];
+
+  beforeAll(() => {
+    process.env.ADMIN_IMPORT_TOKEN = IMPORT_TOKEN;
+  });
+
+  async function callWith(path: string, headers: Record<string, string>) {
+    return proxy(
+      new NextRequest(`http://localhost${path}`, { method: 'POST', headers: new Headers(headers) }),
+    );
+  }
+
+  it.each(PATHS)('refuses %s without a token with 401 JSON', async (path) => {
+    const res = await callWith(path, {});
+    expect(res.status).toBe(401);
+    expect(await res.json()).toEqual({ error: 'unauthorized' });
+  });
+
+  it.each(PATHS)('refuses %s with a wrong token', async (path) => {
+    expect((await callWith(path, { authorization: 'Bearer wrong' })).status).toBe(401);
+    expect((await callWith(path, { authorization: `Bearer ${IMPORT_TOKEN}x` })).status).toBe(401);
+    expect((await callWith(path, { authorization: IMPORT_TOKEN })).status).toBe(401);
+  });
+
+  it.each(PATHS)('lets %s through with the right token', async (path) => {
+    const res = await callWith(path, { authorization: `Bearer ${IMPORT_TOKEN}` });
+    expect(res.status).toBe(200);
+    expect(res.headers.get('x-middleware-next')).toBe('1');
+  });
+
+  it.each(PATHS)('does not open %s to an admin session cookie', async (path) => {
+    const session = await createSessionToken(SECRET);
+    const res = await callWith(path, { cookie: `${ADMIN_SESSION_COOKIE}=${session}` });
+    expect(res.status).toBe(401);
+  });
+
+  it('stays closed when the token is not configured, even for an empty Bearer match', async () => {
+    delete process.env.ADMIN_IMPORT_TOKEN;
+    try {
+      expect((await callWith('/api/admin/import', { authorization: 'Bearer ' })).status).toBe(401);
+      expect(
+        (await callWith('/api/admin/import', { authorization: `Bearer ${IMPORT_TOKEN}` })).status,
+      ).toBe(401);
+    } finally {
+      process.env.ADMIN_IMPORT_TOKEN = IMPORT_TOKEN;
+    }
+  });
+
+  it('does not let the import token open any other admin route', async () => {
+    const headers = { authorization: `Bearer ${IMPORT_TOKEN}` };
+    for (const path of ['/api/admin/books', '/api/admin/importer', '/api/admin/imports']) {
+      expect((await callWith(path, headers)).status, path).toBe(401);
+    }
+    const page = await callWith('/admin/books', headers);
+    expect(page.status).toBe(307);
+  });
+
+  it.each(PATHS)('marks %s private and unindexable', async (path) => {
+    for (const res of [
+      await callWith(path, {}),
+      await callWith(path, { authorization: `Bearer ${IMPORT_TOKEN}` }),
+    ]) {
+      expect(res.headers.get('cache-control')).toBe('private, no-store, max-age=0');
+      expect(res.headers.get('x-robots-tag')).toBe('noindex, nofollow, noarchive');
+    }
+  });
+});
