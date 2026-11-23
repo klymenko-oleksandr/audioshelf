@@ -68,8 +68,8 @@ export async function getAdminBooks(db: AdminDb, query: BooksQuery): Promise<Adm
         status: books.status,
         ongoing: books.ongoing,
         authorId: books.authorId,
+        narratorId: books.narratorId,
         categoryId: books.categoryId,
-        coverKey: books.coverLargeKey,
         durationSeconds: books.durationSeconds,
         publishAt: books.publishAt,
         publishedAt: books.publishedAt,
@@ -115,7 +115,7 @@ export async function getAdminBooks(db: AdminDb, query: BooksQuery): Promise<Adm
       status: book.status,
       hasAuthor: book.authorId !== null,
       hasCategory: book.categoryId !== null,
-      hasCover: !!book.coverKey,
+      hasNarrator: book.narratorId !== null,
       readyTracks: bookTracks.filter((t) => t.status === 'ready').length,
       failedTrackPositions: bookTracks.filter((t) => t.status === 'failed').map((t) => t.position),
     });

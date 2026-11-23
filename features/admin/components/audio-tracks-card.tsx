@@ -9,6 +9,7 @@ import {
   RiUpload2Line,
 } from '@remixicon/react';
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
+import { useReportReadyTracks } from './book-readiness';
 import {
   abortMultipartUploadAction,
   completeMultipartUploadAction,
@@ -102,6 +103,7 @@ export function AudioTracksCard({
   initial: TracksSnapshot;
 }) {
   const [snapshot, setSnapshot] = useState(initial);
+  useReportReadyTracks(snapshot.tracks.filter((track) => track.status === 'ready').length);
   const [live, setLive] = useState<Record<string, Live>>({});
   const [preparing, setPreparing] = useState<{ name: string; live: Live } | null>(null);
   const [rejected, setRejected] = useState<{ name: string; reason: string }[]>([]);
