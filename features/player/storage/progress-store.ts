@@ -14,6 +14,12 @@ export interface ProgressRecord {
   finished: boolean;
   /** Milliseconds since epoch, device clock. */
   updatedAt: number;
+  /**
+   * When playback last paused (ms since epoch); absent while playing. Auto-rewind measures
+   * the pause from it. `updatedAt` is no use for that: saving while paused (the tab is
+   * hidden) moves it.
+   */
+  pausedAt?: number;
 }
 
 export interface ProgressStore {

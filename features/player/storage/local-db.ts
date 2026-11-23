@@ -1,25 +1,8 @@
-import Dexie, { type EntityTable } from 'dexie';
-import {
-  createMemoryProgressStore,
-  type ProgressRecord,
-  type ProgressStore,
-} from './progress-store';
+import { LocalDb } from '@/lib/local-db/db';
+import { getLocalDb } from '@/lib/local-db/shared';
+import { createMemoryProgressStore, type ProgressStore } from './progress-store';
 
-/**
- * The app's IndexedDB database (ADR 4: local-first store). Phase 2 needs only progress;
- * likes, Listen later, history, settings and the sync outbox join in Phases 5 and 6 as
- * further tables and schema versions.
- */
-export class LocalDb extends Dexie {
-  progress!: EntityTable<ProgressRecord, 'bookId'>;
-
-  constructor(name = 'audioshelf') {
-    super(name);
-    this.version(1).stores({
-      progress: 'bookId, updatedAt',
-    });
-  }
-}
+export { LocalDb };
 
 export function createDexieProgressStore(db: LocalDb): ProgressStore {
   return {
@@ -34,7 +17,7 @@ export function createDexieProgressStore(db: LocalDb): ProgressStore {
 export function createProgressStore(): ProgressStore {
   if (typeof indexedDB === 'undefined') return createMemoryProgressStore();
 
-  const dexie = createDexieProgressStore(new LocalDb());
+  const dexie = createDexieProgressStore(getLocalDb());
   const memory = createMemoryProgressStore();
   let broken = false;
   const fallback = <T>(run: (store: ProgressStore) => Promise<T>) =>

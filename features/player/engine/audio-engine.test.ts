@@ -2,7 +2,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { chaptersFromTracks, STALL_TIMEOUT_MS, type PlayerBook } from '../core';
 import { createMemoryProgressStore, type ProgressRecord } from '../storage/progress-store';
-import { AudioEngine, SAVE_INTERVAL_MS, SLEEP_TICK_MS } from './audio-engine';
+import {
+  AudioEngine,
+  DEFAULT_PLAYBACK,
+  type PlaybackSettings,
+  SAVE_INTERVAL_MS,
+  SLEEP_TICK_MS,
+} from './audio-engine';
 import { FakeAudio } from './fake-audio';
 
 function makeBook(id: string, durations: number[], ongoing = false): PlayerBook {
@@ -28,7 +34,8 @@ const other = makeBook('b', [5000]);
 const NOW = 1_800_000_000_000;
 type AudioEngineOptionsResolve = ConstructorParameters<typeof AudioEngine>[0]['resolveBook'];
 
-function setup(saved: ProgressRecord[] = []) {
+function setup(saved: ProgressRecord[] = [], playback: Partial<PlaybackSettings> = {}) {
+  const settings: PlaybackSettings = { ...DEFAULT_PLAYBACK, ...playback };
   const audio = new FakeAudio();
   const store = createMemoryProgressStore(saved);
   const onPlaybackStart = vi.fn();
@@ -39,8 +46,10 @@ function setup(saved: ProgressRecord[] = []) {
     resolveBook: (id) => [book, other].find((b) => b.id === id),
     now: () => clock,
     onPlaybackStart,
+    settings: () => settings,
   });
   return {
+    settings,
     audio,
     store,
     engine,
@@ -826,5 +835,309 @@ describe('closing and subscriptions', () => {
     }).not.toThrow();
     expect(t.status()).toBe('idle');
     expect(t.audio.loads).toEqual([]);
+  });
+});
+
+describe('settings: skip intervals and default speed', () => {
+  function playing(playback: Partial<PlaybackSettings> = {}) {
+    const t = setup([], playback);
+    t.engine.start(book);
+    t.audio.becomeReady();
+    t.audio.advanceTo(300);
+    return t;
+  }
+
+  it('skips by the configured intervals', () => {
+    const t = playing({ skipBackSeconds: 10, skipForwardSeconds: 60 });
+    t.engine.skipForward();
+    expect(t.position()).toBe(360);
+    t.engine.skipBack();
+    expect(t.position()).toBe(350);
+  });
+
+  it('uses 15 s back and 30 s forward by default', () => {
+    const t = playing();
+    t.engine.skipBack();
+    expect(t.position()).toBe(285);
+    t.engine.skipForward();
+    expect(t.position()).toBe(315);
+  });
+
+  it('an interval given by the caller (lock screen) wins over the setting', () => {
+    const t = playing({ skipBackSeconds: 30 });
+    t.engine.skipBack(5);
+    expect(t.position()).toBe(295);
+  });
+
+  it('picks up a changed setting on the next skip, with no restart', () => {
+    const t = playing();
+    t.settings.skipForwardSeconds = 15;
+    t.engine.skipForward();
+    expect(t.position()).toBe(315);
+  });
+
+  it('starts a book with no saved speed at the default speed', () => {
+    const t = setup([], { defaultSpeed: 1.5 });
+    t.engine.start(book);
+    t.audio.becomeReady();
+    expect(t.engine.getState().speed).toBe(1.5);
+    expect(t.audio.playbackRate).toBe(1.5);
+  });
+
+  it('keeps the speed saved for a book over the default', async () => {
+    const t = setup([record('a', 100, { speed: 0.75 })], { defaultSpeed: 2 });
+    await t.engine.init();
+    t.engine.start(book);
+    expect(t.engine.getState().speed).toBe(0.75);
+  });
+
+  it('does not change the speed of a book that is already playing', () => {
+    const t = playing();
+    t.settings.defaultSpeed = 2;
+    expect(t.engine.getState().speed).toBe(1);
+  });
+});
+
+describe('settings: auto-rewind on resume', () => {
+  const MIN = 60_000;
+
+  function paused(playback: Partial<PlaybackSettings> = {}) {
+    const t = setup([], playback);
+    t.engine.start(book);
+    t.audio.becomeReady();
+    t.audio.advanceTo(100);
+    t.engine.pause();
+    return t;
+  }
+
+  it('resumes 10 s earlier after a pause of 5 minutes', () => {
+    const t = paused();
+    t.tick(5 * MIN);
+    t.engine.play();
+    expect(t.position()).toBe(90);
+    expect(t.audio.currentTime).toBe(90);
+    expect(t.status()).toBe('playing');
+  });
+
+  it('does not rewind after a shorter pause', () => {
+    const t = paused();
+    t.tick(5 * MIN - 1000);
+    t.engine.play();
+    expect(t.position()).toBe(100);
+  });
+
+  it('does not rewind when the setting is off', () => {
+    const t = paused({ autoRewind: false });
+    t.tick(60 * MIN);
+    t.engine.play();
+    expect(t.position()).toBe(100);
+  });
+
+  it('rewinds again after a second long pause', () => {
+    const t = paused();
+    t.tick(10 * MIN);
+    t.engine.play();
+    t.audio.advanceTo(200);
+    t.engine.pause();
+    t.tick(10 * MIN);
+    t.engine.play();
+    expect(t.position()).toBe(190);
+  });
+
+  it('can cross into the previous file', () => {
+    const t = setup();
+    t.engine.start(book, 605); // chapter 2 starts at 600
+    t.audio.becomeReady();
+    t.engine.pause();
+    t.tick(10 * MIN);
+    t.engine.play();
+    expect(t.position()).toBe(595);
+    expect(t.audio.loads.at(-1)).toBe('https://media.test/a/1.mp3');
+  });
+
+  it('a seek while paused cancels it: the listener chose that spot', () => {
+    const t = paused();
+    t.tick(10 * MIN);
+    t.engine.seek(500);
+    t.engine.play();
+    expect(t.position()).toBe(500);
+  });
+
+  it('records when playback paused, and nothing while it plays', () => {
+    const t = setup();
+    t.engine.start(book);
+    t.audio.becomeReady();
+    t.tick(SAVE_INTERVAL_MS);
+    expect(t.saved()?.pausedAt).toBeUndefined();
+
+    t.engine.pause();
+    expect(t.saved()?.pausedAt).toBe(NOW + SAVE_INTERVAL_MS);
+    t.tick(SAVE_INTERVAL_MS);
+    t.engine.flush(); // the tab is hidden while paused: the pause time must not move
+    expect(t.saved()?.pausedAt).toBe(NOW + SAVE_INTERVAL_MS);
+
+    t.engine.play();
+    t.tick(SAVE_INTERVAL_MS);
+    expect(t.saved()?.pausedAt).toBeUndefined();
+  });
+
+  it('works after a reload, using the pause time that was saved', async () => {
+    const t = setup([record('a', 1000, { pausedAt: NOW - 10 * MIN, updatedAt: NOW - 1000 })]);
+    await t.engine.init();
+    t.engine.play();
+    expect(t.position()).toBe(990);
+    t.audio.becomeReady();
+    expect(t.audio.currentTime).toBe(390); // 990 − 600, in the second file
+  });
+
+  it('after a reload with no pause time (v1 data, a crash), falls back to when it was last saved', async () => {
+    const old = setup([record('a', 1000, { updatedAt: NOW - 3_600_000 })]);
+    await old.engine.init();
+    old.engine.play();
+    expect(old.position()).toBe(990);
+
+    const recent = setup([record('a', 1000, { updatedAt: NOW - 30_000 })]);
+    await recent.engine.init();
+    recent.engine.play();
+    expect(recent.position()).toBe(1000);
+  });
+
+  it('applies when a card or book page resumes the book', async () => {
+    const t = setup([record('a', 1000, { pausedAt: NOW - 10 * MIN })]);
+    await t.engine.init();
+    t.engine.start(book);
+    expect(t.position()).toBe(990);
+  });
+
+  it('does not apply when the listener taps a chapter', async () => {
+    const t = setup([record('a', 1000, { pausedAt: NOW - 10 * MIN })]);
+    await t.engine.init();
+    t.engine.start(book, 600);
+    expect(t.position()).toBe(600);
+  });
+
+  it('starting another book counts as pausing the first, so it rewinds when resumed', () => {
+    const t = setup();
+    t.engine.start(book);
+    t.audio.becomeReady();
+    t.audio.advanceTo(100);
+    t.engine.start(other);
+    expect(t.saved('a')?.pausedAt).toBe(NOW);
+
+    t.tick(10 * MIN);
+    t.engine.start(book);
+    expect(t.position()).toBe(90);
+  });
+
+  it('never rewinds a book that was finished and starts again from 0', async () => {
+    const t = setup([record('a', 2090, { finished: true, pausedAt: NOW - 60 * MIN })]);
+    await t.engine.init();
+    t.engine.start(book);
+    expect(t.position()).toBe(0);
+  });
+});
+
+describe('settings: play next chapter', () => {
+  // One file, two chapters: the boundary is in the middle of a file.
+  const chaptered: PlayerBook = {
+    ...makeBook('m', [1200]),
+    chapters: [
+      { id: 'm1', title: 'One', start: 0, end: 600 },
+      { id: 'm2', title: 'Two', start: 600, end: 1200 },
+    ],
+  };
+  const stopping = { continueToNextChapter: false };
+
+  it('stops on the chapter boundary, inside a file', () => {
+    const t = setup([], stopping);
+    t.engine.start(chaptered);
+    t.audio.becomeReady();
+    t.audio.advanceTo(599.5);
+    expect(t.status()).toBe('playing');
+
+    t.audio.advanceTo(599.8);
+    expect(t.status()).toBe('paused');
+    expect(t.position()).toBe(600);
+    expect(t.audio.currentTime).toBe(600);
+    expect(t.audio.paused).toBe(true);
+    expect(t.engine.getState().chapterIndex).toBe(1);
+  });
+
+  it('play continues with the next chapter, with no rewind however long the wait', () => {
+    const t = setup([], stopping);
+    t.engine.start(chaptered);
+    t.audio.becomeReady();
+    t.audio.advanceTo(599.8);
+    t.tick(60 * 60_000);
+
+    t.engine.play();
+    expect(t.status()).toBe('playing');
+    expect(t.position()).toBe(600);
+  });
+
+  it('stops where a file ends at a chapter end, without starting the next file', () => {
+    const t = setup([], stopping);
+    t.engine.start(book);
+    t.audio.becomeReady();
+    t.audio.advanceTo(590);
+    t.audio.finishTrack();
+
+    expect(t.status()).toBe('paused');
+    expect(t.position()).toBe(600);
+    expect(t.audio.loads.at(-1)).toBe('https://media.test/a/2.mp3'); // ready for Play
+    expect(t.audio.playCalls).toBe(1);
+
+    t.engine.play();
+    expect(t.audio.playCalls).toBe(2);
+    expect(t.audio.paused).toBe(false);
+  });
+
+  it('stops just before a file ends too, and lands in the next file', () => {
+    const t = setup([], stopping);
+    t.engine.start(book);
+    t.audio.becomeReady();
+    t.audio.advanceTo(599.9);
+    expect(t.status()).toBe('paused');
+    expect(t.position()).toBe(600);
+    expect(t.audio.loads.at(-1)).toBe('https://media.test/a/2.mp3');
+  });
+
+  it('keeps going when the setting is on (the default)', () => {
+    const t = setup();
+    t.engine.start(chaptered);
+    t.audio.becomeReady();
+    t.audio.advanceTo(599.9);
+    expect(t.status()).toBe('playing');
+  });
+
+  it('only stops at natural chapter ends, not when the listener seeks across one', () => {
+    const t = setup([], stopping);
+    t.engine.start(chaptered);
+    t.audio.becomeReady();
+    t.engine.seek(700);
+    expect(t.status()).toBe('playing');
+    t.engine.nextChapter();
+    expect(t.status()).toBe('playing');
+  });
+
+  it('still ends the book normally at the end of the last chapter', () => {
+    const t = setup([], stopping);
+    t.engine.start(book, 1900);
+    t.audio.becomeReady();
+    t.audio.advanceTo(299.9); // inside the last file, 0.1 s before the end of the book
+    expect(t.status()).toBe('playing');
+    t.audio.finishTrack();
+    expect(t.status()).toBe('finished');
+  });
+
+  it('counts the quarter second in real time at higher speeds', async () => {
+    const t = setup([record('m', 0, { speed: 2 })], stopping);
+    await t.engine.init();
+    t.engine.start(chaptered);
+    t.audio.becomeReady();
+    t.audio.advanceTo(599.4); // 0.6 s of book = 0.3 s real: not yet
+    expect(t.status()).toBe('playing');
+    t.audio.advanceTo(599.6); // 0.4 s of book = 0.2 s real
+    expect(t.status()).toBe('paused');
   });
 });

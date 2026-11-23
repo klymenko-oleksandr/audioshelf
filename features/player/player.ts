@@ -1,5 +1,6 @@
 'use client';
 
+import { getSettings, getSettingsStore } from '@/features/settings/use-settings';
 import { useMemo, useSyncExternalStore } from 'react';
 import { loadPlayerBook } from './data/load-book';
 import { AudioEngine, IDLE_STATE, type PlayerState } from './engine/audio-engine';
@@ -26,8 +27,11 @@ export function getPlayer(): AudioEngine {
     store: createProgressStore(),
     resolveBook: (bookId) => loadPlayerBook(bookId),
     onPlaybackStart: tabs.announce,
+    settings: getSettings,
   });
   engine = created;
+  // Start loading Settings now, so the first Play already uses the saved intervals.
+  getSettingsStore();
 
   attachMediaSession(created);
 

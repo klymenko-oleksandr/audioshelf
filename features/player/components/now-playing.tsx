@@ -4,12 +4,10 @@ import {
   RiArrowDownSLine,
   RiEqualizerLine,
   RiErrorWarningLine,
-  RiForward30Line,
   RiPauseFill,
   RiPlayFill,
   RiPlayList2Line,
   RiRefreshLine,
-  RiReplay15Line,
   RiRestartLine,
   RiSkipBackFill,
   RiSkipForwardFill,
@@ -42,10 +40,12 @@ import {
   SLEEP_MINUTE_OPTIONS,
   SPEED_PRESETS,
 } from '../core';
+import { useSettings } from '@/features/settings/use-settings';
 import { getPlayer, usePlayerState } from '../player';
 import { closeNowPlaying, openSheet, useNowPlayingOpen } from '../ui/player-ui';
 import { PlayerSheets } from './player-sheets';
 import { Scrubber } from './scrubber';
+import { SkipIcon } from './skip-icon';
 import { useDurationLabel } from './use-duration-label';
 import { viewState } from './view-state';
 
@@ -113,6 +113,7 @@ function Action({
  */
 export function NowPlaying() {
   const t = useTranslations('player');
+  const { skipBackSeconds: skipBack, skipForwardSeconds: skipForward } = useSettings();
   const state = usePlayerState();
   const hashOpen = useNowPlayingOpen();
   const spinnerVisible = useDelayedLoading(isWaiting(state.status));
@@ -227,10 +228,10 @@ export function NowPlaying() {
 
               <div className="flex w-full max-w-[380px] items-center justify-between">
                 <Transport
-                  label={t('back', { seconds: 15 })}
+                  label={t('back', { seconds: skipBack })}
                   onClick={() => getPlayer().skipBack()}
                 >
-                  <RiReplay15Line size={28} aria-hidden />
+                  <SkipIcon direction="back" seconds={skipBack} size={28} />
                 </Transport>
                 <Transport
                   label={t('previousChapter')}
@@ -270,10 +271,10 @@ export function NowPlaying() {
                   <RiSkipForwardFill size={28} aria-hidden />
                 </Transport>
                 <Transport
-                  label={t('forward', { seconds: 30 })}
+                  label={t('forward', { seconds: skipForward })}
                   onClick={() => getPlayer().skipForward()}
                 >
-                  <RiForward30Line size={28} aria-hidden />
+                  <SkipIcon direction="forward" seconds={skipForward} size={28} />
                 </Transport>
               </div>
 

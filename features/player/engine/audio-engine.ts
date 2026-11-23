@@ -1,11 +1,13 @@
+import { DEFAULT_SETTINGS, type Settings } from '@/features/settings/definitions';
 import {
+  autoRewindTarget,
   buildTimeline,
   chapterIndexAt,
-  DEFAULT_SKIP_BACK_S,
-  DEFAULT_SKIP_FORWARD_S,
+  chapterStopTarget,
   DEFAULT_SPEED,
   hasStallTimeout,
   isAdvancing,
+  isChapterBoundary,
   isFinished,
   locate,
   nextChapterTarget,
@@ -60,12 +62,28 @@ export interface PlayerState {
   sleep: { timer: SleepTimer; remainingMs: number } | null;
 }
 
+/** The settings the engine reads (a slice of `features/settings`), at the moment of each action. */
+export type PlaybackSettings = Pick<
+  Settings,
+  'defaultSpeed' | 'skipBackSeconds' | 'skipForwardSeconds' | 'autoRewind' | 'continueToNextChapter'
+>;
+
+export const DEFAULT_PLAYBACK: Readonly<PlaybackSettings> = {
+  defaultSpeed: DEFAULT_SETTINGS.defaultSpeed,
+  skipBackSeconds: DEFAULT_SETTINGS.skipBackSeconds,
+  skipForwardSeconds: DEFAULT_SETTINGS.skipForwardSeconds,
+  autoRewind: DEFAULT_SETTINGS.autoRewind,
+  continueToNextChapter: DEFAULT_SETTINGS.continueToNextChapter,
+};
+
 export interface AudioEngineOptions {
   createAudio: () => AudioLike;
   store: ProgressStore;
   /** Finds a book by id, to restore the last one on app open. */
   resolveBook: (bookId: string) => PlayerBook | undefined | Promise<PlayerBook | undefined>;
   now?: () => number;
+  /** Current playback settings; read when an action needs them, so changes apply at once. */
+  settings?: () => PlaybackSettings;
   /** Called whenever this engine starts producing sound (for the one-tab rule). */
   onPlaybackStart?: () => void;
 }
@@ -113,9 +131,15 @@ export class AudioEngine {
   private ready: Promise<void> | null = null;
   private progressVersion = 0;
   private sleepTicker: ReturnType<typeof setInterval> | null = null;
+  /** When playback last paused; `undefined` while it plays or when unknown. */
+  private pausedAt: number | undefined;
 
   constructor(options: AudioEngineOptions) {
     this.options = { now: Date.now, ...options };
+  }
+
+  private get settings(): PlaybackSettings {
+    return this.options.settings?.() ?? DEFAULT_PLAYBACK;
   }
 
   // ── Reading ──────────────────────────────────────────────────────────────────
@@ -185,6 +209,7 @@ export class AudioEngine {
           speed: normalizeSpeed(last.speed),
           sleep: null,
         });
+        this.pausedAt = pauseTimeOf(last);
       });
     return this.ready;
   }
@@ -207,7 +232,7 @@ export class AudioEngine {
    * or from `position` when given (tapping a chapter).
    */
   start(book: PlayerBook, position?: number): void {
-    if (this.state.book && this.state.book.id !== book.id) this.save();
+    if (this.state.book && this.state.book.id !== book.id) this.leaveBook();
     this.clearSleep();
 
     const saved = this.progress.get(book.id);
@@ -216,7 +241,12 @@ export class AudioEngine {
     const startAt =
       position !== undefined
         ? skipTarget(position, 0, duration)
-        : resumePosition(saved?.position, duration);
+        : autoRewindTarget({
+            position: resumePosition(saved?.position, duration),
+            pausedAt: saved && pauseTimeOf(saved),
+            now: this.options.now(),
+            enabled: this.settings.autoRewind,
+          });
 
     this.setState({
       status: transition(this.state.status, 'START'),
@@ -224,7 +254,7 @@ export class AudioEngine {
       position: startAt,
       duration,
       chapterIndex: chapterIndexAt(book.chapters, startAt),
-      speed: normalizeSpeed(saved?.speed ?? DEFAULT_SPEED),
+      speed: normalizeSpeed(saved?.speed ?? this.settings.defaultSpeed),
       sleep: null,
     });
     this.loadAt(startAt, true);
@@ -238,6 +268,15 @@ export class AudioEngine {
     this.clearSleep();
 
     if (status === 'paused') {
+      // Smart rewind: after a long pause, back up a little. Done while still paused, so it
+      // is just a seek; a seek (the listener's own, too) forgets the pause time.
+      const resumeAt = autoRewindTarget({
+        position: this.state.position,
+        pausedAt: this.pausedAt,
+        now: this.options.now(),
+        enabled: this.settings.autoRewind,
+      });
+      if (resumeAt !== this.state.position) this.seek(resumeAt);
       this.dispatch('PLAY');
       if (this.trackIndex === -1) this.loadAt(this.state.position, true);
       else this.playAudio();
@@ -280,6 +319,8 @@ export class AudioEngine {
     if (!book || status === 'idle') return;
 
     const target = skipTarget(bookTime, 0, this.state.duration);
+    // Moving the position while paused is the listener's choice of where to resume.
+    if (status === 'paused') this.pausedAt = undefined;
     if (status === 'finished') this.dispatch('SEEK');
     this.setPosition(target);
 
@@ -294,11 +335,13 @@ export class AudioEngine {
     this.save();
   }
 
-  skipBack(seconds = DEFAULT_SKIP_BACK_S): void {
+  /** Back by `seconds`, or by the interval in Settings. */
+  skipBack(seconds = this.settings.skipBackSeconds): void {
     this.seek(skipTarget(this.state.position, -seconds, this.state.duration));
   }
 
-  skipForward(seconds = DEFAULT_SKIP_FORWARD_S): void {
+  /** Forward by `seconds`, or by the interval in Settings. */
+  skipForward(seconds = this.settings.skipForwardSeconds): void {
     this.seek(skipTarget(this.state.position, seconds, this.state.duration));
   }
 
@@ -352,7 +395,7 @@ export class AudioEngine {
   close(): void {
     if (this.state.status === 'idle') return;
     this.clearSleep();
-    this.save();
+    this.leaveBook();
     this.switching = true;
     this.audio?.pause();
     this.switching = false;
@@ -387,6 +430,7 @@ export class AudioEngine {
       if (!audio || this.switching || this.pendingOffset !== null || this.trackIndex === -1) return;
       if (this.state.status === 'idle' || this.state.status === 'finished') return;
       this.setPosition(toBookTime(this.timeline, this.trackIndex, audio.currentTime));
+      this.stopAtChapterEnd();
     },
     ended: () => this.onTrackEnded(),
     error: () => {
@@ -473,13 +517,48 @@ export class AudioEngine {
     if (next < book.tracks.length) {
       // Keep going into the next file; the listener hears one continuous book.
       const start = this.timeline.starts[next]!;
+      // "Play next chapter" is off and the file ended where a chapter ends: line up the next
+      // file, paused, so Play continues with the next chapter.
+      const stop =
+        this.stopsAtChapterEnds && wantsToPlay(status) && isChapterBoundary(book.chapters, start);
       this.setPosition(start);
-      this.loadAt(start, wantsToPlay(status));
+      this.loadAt(start, wantsToPlay(status) && !stop);
+      if (stop) {
+        this.dispatch('PAUSE');
+        this.save();
+      }
       return;
     }
     this.setPosition(this.state.duration);
     this.dispatch('ENDED');
     this.save();
+  }
+
+  // ── Chapters and leaving a book ──────────────────────────────────────────────
+
+  private get stopsAtChapterEnds(): boolean {
+    return !this.settings.continueToNextChapter;
+  }
+
+  /**
+   * "Play next chapter" is off: pause just before a chapter ends and land exactly on its end,
+   * so the next Play starts the next chapter (the same landing as the sleep timer's
+   * "end of chapter"). Only natural playback gets here; a seek never stops.
+   */
+  private stopAtChapterEnd(): void {
+    if (!this.stopsAtChapterEnds) return;
+    const { book, status, position, speed } = this.state;
+    if (!book || status !== 'playing') return;
+    const end = chapterStopTarget(book.chapters, position, speed);
+    if (end === null) return;
+    this.pausePlayback();
+    this.seek(end);
+  }
+
+  /** Save the current book as the listener leaves it (another book starts, or it is closed). */
+  private leaveBook(): void {
+    if (wantsToPlay(this.state.status)) this.pausedAt = this.options.now();
+    this.save(true, true);
   }
 
   // ── State ────────────────────────────────────────────────────────────────────
@@ -504,7 +583,14 @@ export class AudioEngine {
   private setState(next: PlayerState): void {
     const previous = this.state;
     this.state = next;
-    if (previous.status !== next.status) this.onStatusChange(next.status);
+    if (previous.status !== next.status) {
+      if (next.status === 'paused' && wantsToPlay(previous.status)) {
+        this.pausedAt = this.options.now();
+      } else if (wantsToPlay(next.status)) {
+        this.pausedAt = undefined;
+      }
+      this.onStatusChange(next.status);
+    }
     this.emit();
   }
 
@@ -606,10 +692,12 @@ export class AudioEngine {
     };
   }
 
-  private save(sync = true): void {
+  private save(sync = true, leaving = false): void {
     if (sync) this.syncPosition();
     const { book, position, duration, speed, status } = this.state;
     if (!book || status === 'idle') return;
+    const stopped = leaving || !wantsToPlay(status);
+    const pausedAt = stopped ? this.pausedAt : undefined;
     const record: ProgressRecord = {
       bookId: book.id,
       position,
@@ -618,6 +706,7 @@ export class AudioEngine {
       // Ongoing books are never "finished": more parts are coming.
       finished: !book.ongoing && (status === 'finished' || isFinished(position, duration)),
       updatedAt: this.options.now(),
+      ...(pausedAt !== undefined ? { pausedAt } : {}),
     };
     this.progress.set(book.id, record);
     this.progressVersion++;
@@ -626,4 +715,12 @@ export class AudioEngine {
       // Storage failures must never interrupt playback; the in-memory copy still serves this session.
     });
   }
+}
+
+/**
+ * When a saved book was last paused. Records from before `pausedAt` existed (and from a tab
+ * that closed while playing) fall back to the last save, which is close enough.
+ */
+function pauseTimeOf(record: ProgressRecord): number {
+  return record.pausedAt ?? record.updatedAt;
 }

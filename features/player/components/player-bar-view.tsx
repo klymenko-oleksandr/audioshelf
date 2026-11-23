@@ -1,16 +1,15 @@
 'use client';
 
+import { SkipIcon } from './skip-icon';
 import {
   RiArrowUpSLine,
   RiErrorWarningLine,
-  RiForward30Line,
   RiHeartFill,
   RiHeartLine,
   RiPauseFill,
   RiPlayFill,
   RiPlayList2Line,
   RiRefreshLine,
-  RiReplay15Line,
   RiRestartLine,
   RiSkipBackFill,
   RiSkipForwardFill,
@@ -64,6 +63,9 @@ export interface PlayerBarViewProps {
   onSleepTimer?: () => void;
   onChapters?: () => void;
   onToggleLike?: () => void;
+  /** Configured skip intervals (Settings); the labels and icons follow them. */
+  skipBackSeconds?: number;
+  skipForwardSeconds?: number;
 }
 
 function IconButton({
@@ -105,6 +107,8 @@ function IconButton({
  * whose handler is not passed are not rendered, so nothing on screen is a dead button.
  */
 export function PlayerBarView(props: PlayerBarViewProps) {
+  const skipBack = props.skipBackSeconds ?? 15;
+  const skipForward = props.skipForwardSeconds ?? 30;
   const t = useTranslations('player');
   const { state, book, bookProgressPct = 0, speedLabel = '1×', liked = false } = props;
 
@@ -235,11 +239,11 @@ export function PlayerBarView(props: PlayerBarViewProps) {
                   {mainIcon(24)}
                 </IconButton>
                 <IconButton
-                  label={t('forward', { seconds: 30 })}
+                  label={t('forward', { seconds: skipForward })}
                   onClick={props.onSkipForward}
                   className="size-11 rounded-full"
                 >
-                  <RiForward30Line size={20} aria-hidden />
+                  <SkipIcon direction="forward" seconds={skipForward} size={20} />
                 </IconButton>
               </>
             )}
@@ -294,11 +298,11 @@ export function PlayerBarView(props: PlayerBarViewProps) {
         ) : (
           <>
             <IconButton
-              label={t('back', { seconds: 15 })}
+              label={t('back', { seconds: skipBack })}
               onClick={props.onSkipBack}
               className="size-11 rounded-full"
             >
-              <RiReplay15Line size={20} aria-hidden />
+              <SkipIcon direction="back" seconds={skipBack} size={20} />
             </IconButton>
             <button
               type="button"
@@ -309,11 +313,11 @@ export function PlayerBarView(props: PlayerBarViewProps) {
               {mainIcon(24)}
             </button>
             <IconButton
-              label={t('forward', { seconds: 30 })}
+              label={t('forward', { seconds: skipForward })}
               onClick={props.onSkipForward}
               className="size-11 rounded-full"
             >
-              <RiForward30Line size={20} aria-hidden />
+              <SkipIcon direction="forward" seconds={skipForward} size={20} />
             </IconButton>
             {props.onSpeed ? (
               <Button variant="ghost" size="sm" aria-label={t('speed')} onClick={props.onSpeed}>
@@ -372,8 +376,8 @@ export function PlayerBarView(props: PlayerBarViewProps) {
         ) : (
           <div className="flex flex-col items-center gap-1.5">
             <div className="flex items-center gap-3">
-              <IconButton label={t('back', { seconds: 15 })} onClick={props.onSkipBack}>
-                <RiReplay15Line size={20} aria-hidden />
+              <IconButton label={t('back', { seconds: skipBack })} onClick={props.onSkipBack}>
+                <SkipIcon direction="back" seconds={skipBack} size={20} />
               </IconButton>
               <IconButton label={t('previousChapter')} onClick={props.onPreviousChapter}>
                 <RiSkipBackFill size={20} aria-hidden />
@@ -389,8 +393,11 @@ export function PlayerBarView(props: PlayerBarViewProps) {
               <IconButton label={t('nextChapter')} onClick={props.onNextChapter}>
                 <RiSkipForwardFill size={20} aria-hidden />
               </IconButton>
-              <IconButton label={t('forward', { seconds: 30 })} onClick={props.onSkipForward}>
-                <RiForward30Line size={20} aria-hidden />
+              <IconButton
+                label={t('forward', { seconds: skipForward })}
+                onClick={props.onSkipForward}
+              >
+                <SkipIcon direction="forward" seconds={skipForward} size={20} />
               </IconButton>
             </div>
             <div className="text-muted-foreground flex w-full max-w-140 items-center gap-2.5 text-[11px] tabular-nums">
