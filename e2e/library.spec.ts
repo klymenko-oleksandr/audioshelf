@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { savedCount, waitForSaved } from './saved';
 
 // Read-only: Liked, Listen later and History live in the browser (IndexedDB); nothing is
 // written to the server. Every test gets a fresh browser context, so it starts empty.
@@ -15,6 +16,7 @@ const player = (page: Page) => page.getByRole('region', { name: 'Player' });
 async function like(page: Page, slug: string) {
   await page.goto(`/book/${slug}`);
   const main = page.getByRole('main');
+  const before = await savedCount(page, 'likes');
   await main
     .getByRole('button', { name: 'Like', exact: true })
     .filter({ visible: true })
@@ -26,14 +28,17 @@ async function like(page: Page, slug: string) {
       .filter({ visible: true })
       .first(),
   ).toBeVisible();
+  await waitForSaved(page, 'likes', before + 1);
 }
 
 async function listenLater(page: Page, slug: string) {
   await page.goto(`/book/${slug}`);
+  const before = await savedCount(page, 'listenLater');
   await page.getByRole('main').getByRole('button', { name: 'Listen later' }).click();
   await expect(
     page.getByRole('main').getByRole('button', { name: 'In Listen later' }),
   ).toBeVisible();
+  await waitForSaved(page, 'listenLater', before + 1);
 }
 
 /** Plays "Три тони" from its second chapter for a moment, then pauses: a saved place. */

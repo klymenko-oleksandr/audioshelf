@@ -70,7 +70,28 @@
   "guest": {
     "title": "Keep your place on every device",
     "body": "You're listening as a guest. Progress is saved on this device only.",
-    "cta": "Continue with Google"
+    "cta": "Continue with Google",
+    "nudge": {
+      "title": "Keep these on every device",
+      "both": "You liked {liked, plural, one {# book} other {# books}} and added {later, plural, one {# book} other {# books}} to Listen later on this browser.",
+      "likedOnly": "You liked {liked, plural, one {# book} other {# books}} on this browser.",
+      "laterOnly": "You added {later, plural, one {# book} other {# books}} to Listen later on this browser.",
+      "none": "You saved books on this browser.",
+      "warning": "They are stored only here. If you clear this site's data, they are lost. Sign in so they follow you to your phone.",
+      "cta": "Continue with Google",
+      "notNow": "Not now",
+      "close": "Close"
+    }
+  },
+  "welcome": {
+    "title": "Stories that remember where you stopped",
+    "body": "Classic and Ukrainian audiobooks, free to listen. Pick up where you left off, on any screen.",
+    "language": "Language",
+    "start": "Start listening",
+    "skip": "Skip",
+    "elsewhere": "Already listening on another device?",
+    "signIn": "Sign in with Google",
+    "elsewhereMobile": "Listening elsewhere?"
   },
   "player": {
     "label": "Player",

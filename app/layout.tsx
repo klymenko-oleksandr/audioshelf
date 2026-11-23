@@ -3,6 +3,7 @@ import { NextIntlClientProvider } from 'next-intl';
 import { getLocale, getTranslations } from 'next-intl/server';
 import { Toaster } from '@/components/ui/toast';
 import { ThemeSync } from '@/features/settings/theme-sync';
+import { WELCOME_INIT_SCRIPT } from '@/features/guest/welcome';
 import { THEME_INIT_SCRIPT } from '@/features/settings/theme';
 import './globals.css';
 
@@ -34,6 +35,8 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
       <head>
         {/* Applies a forced light/dark theme before the first paint, so there is no flash. */}
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
+        {/* Marks Home as "welcome may be due" before first paint; the splash waits for it. */}
+        <script dangerouslySetInnerHTML={{ __html: WELCOME_INIT_SCRIPT }} />
       </head>
       <body>
         <NextIntlClientProvider>

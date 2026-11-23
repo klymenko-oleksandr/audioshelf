@@ -3,6 +3,7 @@
 import { useTranslations } from 'next-intl';
 import { useCallback, useMemo, useSyncExternalStore } from 'react';
 import { createBrowserChannel } from '@/features/settings/channel';
+import { getGuestStore } from '@/features/guest/use-guest';
 import { getLocalDb } from '@/lib/local-db/shared';
 import { toggleWithToast, type FlagToastLabels } from './actions';
 import {
@@ -29,6 +30,9 @@ export function getLibraryFlagsStore(): LibraryFlagsStore {
   store = new LibraryFlagsStore({
     repo: createDexieFlagsRepo(getLocalDb()),
     channel: createBrowserChannel(CHANNEL_NAME, STORAGE_PING_KEY),
+    // Every add path (cards, book page, search rows, player) goes through the store, so this
+    // one line counts them all for the guest nudge.
+    onAdd: () => void getGuestStore().recordAdd(),
   });
   void store.load();
   return store;

@@ -360,3 +360,86 @@ describe('LibraryFlagsStore.remove (a finished book leaves Listen later)', () =>
     await vi.waitFor(() => expect(second.store.getSnapshot().listenLater.has('a')).toBe(false));
   });
 });
+
+describe('LibraryFlagsStore: onAdd (feeds the guest nudge counter)', () => {
+  function openCounting() {
+    const onAdd = vi.fn();
+    const db = new LocalDb(freshName());
+    dbs.push(db);
+    const store = new LibraryFlagsStore({ repo: createDexieFlagsRepo(db, { now }), onAdd });
+    stores.push(store);
+    return { store, onAdd };
+  }
+
+  it('is called once for each add, with the kind and the book', async () => {
+    const { store, onAdd } = openCounting();
+    await store.toggle('like', 'a');
+    await store.toggle('listenLater', 'b');
+    expect(onAdd).toHaveBeenCalledTimes(2);
+    expect(onAdd).toHaveBeenNthCalledWith(1, 'like', 'a');
+    expect(onAdd).toHaveBeenNthCalledWith(2, 'listenLater', 'b');
+  });
+
+  it('is not called for an unlike or a removal', async () => {
+    const { store, onAdd } = openCounting();
+    await store.toggle('like', 'a');
+    onAdd.mockClear();
+    await store.toggle('like', 'a'); // unlike
+    expect(onAdd).not.toHaveBeenCalled();
+  });
+
+  it('is not called when Undo takes an add back', async () => {
+    const { store, onAdd } = openCounting();
+    const added = await store.toggle('like', 'a');
+    onAdd.mockClear();
+    await added.undo();
+    expect(onAdd).not.toHaveBeenCalled();
+  });
+
+  it('is not called when Undo puts a removed book back (that is not a new add)', async () => {
+    const { store, onAdd } = openCounting();
+    await store.toggle('listenLater', 'a');
+    const removed = await store.toggle('listenLater', 'a');
+    onAdd.mockClear();
+    expect(await removed.undo()).toBe(true);
+    expect(onAdd).not.toHaveBeenCalled();
+  });
+
+  it('is not called for a second or stale Undo', async () => {
+    const { store, onAdd } = openCounting();
+    await store.toggle('like', 'a');
+    const removed = await store.toggle('like', 'a');
+    await removed.undo();
+    onAdd.mockClear();
+    await removed.undo();
+    expect(onAdd).not.toHaveBeenCalled();
+  });
+
+  it('is not called when a finished book leaves Listen later', async () => {
+    const { store, onAdd } = openCounting();
+    await store.toggle('listenLater', 'a');
+    onAdd.mockClear();
+    await store.remove('listenLater', 'a');
+    expect(onAdd).not.toHaveBeenCalled();
+  });
+
+  it('counts a like added again after an unlike (each add is an add)', async () => {
+    const { store, onAdd } = openCounting();
+    await store.toggle('like', 'a');
+    await store.toggle('like', 'a');
+    await store.toggle('like', 'a');
+    expect(onAdd).toHaveBeenCalledTimes(2);
+  });
+
+  it('a failing counter never breaks the toggle', async () => {
+    const onAdd = vi.fn(() => {
+      throw new Error('counter broke');
+    });
+    const db = new LocalDb(freshName());
+    dbs.push(db);
+    const store = new LibraryFlagsStore({ repo: createDexieFlagsRepo(db, { now }), onAdd });
+    stores.push(store);
+    const result = await store.toggle('like', 'a');
+    expect(result.on).toBe(true);
+  });
+});
