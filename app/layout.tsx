@@ -2,6 +2,8 @@ import type { Metadata, Viewport } from 'next';
 import { NextIntlClientProvider } from 'next-intl';
 import { getLocale, getTranslations } from 'next-intl/server';
 import { Toaster } from '@/components/ui/toast';
+import { ThemeSync } from '@/features/settings/theme-sync';
+import { THEME_INIT_SCRIPT } from '@/features/settings/theme';
 import './globals.css';
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -27,11 +29,17 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
   const locale = await getLocale();
 
   return (
-    <html lang={locale}>
+    // suppressHydrationWarning: the script below sets data-theme on <html> before React runs.
+    <html lang={locale} suppressHydrationWarning>
+      <head>
+        {/* Applies a forced light/dark theme before the first paint, so there is no flash. */}
+        <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
+      </head>
       <body>
         <NextIntlClientProvider>
           {children}
           <Toaster />
+          <ThemeSync />
         </NextIntlClientProvider>
       </body>
     </html>

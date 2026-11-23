@@ -1,5 +1,4 @@
 import { COVER_IMAGES_ENABLED } from '@/features/catalogue/cover-images';
-import { DEFAULT_SKIP_BACK_S, DEFAULT_SKIP_FORWARD_S } from '../core';
 import type { AudioEngine, PlayerState } from './audio-engine';
 
 /**
@@ -14,8 +13,8 @@ export function attachMediaSession(engine: AudioEngine): () => void {
   const handlers: [MediaSessionAction, MediaSessionActionHandler][] = [
     ['play', () => engine.play()],
     ['pause', () => engine.pause()],
-    ['seekbackward', (d) => engine.skipBack(d.seekOffset ?? DEFAULT_SKIP_BACK_S)],
-    ['seekforward', (d) => engine.skipForward(d.seekOffset ?? DEFAULT_SKIP_FORWARD_S)],
+    ['seekbackward', (d) => engine.skipBack(d.seekOffset)],
+    ['seekforward', (d) => engine.skipForward(d.seekOffset)],
     ['previoustrack', () => engine.previousChapter()],
     ['nexttrack', () => engine.nextChapter()],
     [

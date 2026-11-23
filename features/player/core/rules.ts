@@ -3,9 +3,9 @@ import type { PlayerChapter } from './types';
 
 /** Player rules from the PRD (Player → Controls and rules). Pure functions, book time in s. */
 
+/** Fallbacks only; the real intervals come from Settings (features/settings). */
 export const DEFAULT_SKIP_BACK_S = 15;
 export const DEFAULT_SKIP_FORWARD_S = 30;
-export const SKIP_OPTIONS_S = [10, 15, 30, 45, 60] as const;
 
 /** "Previous chapter" restarts the current chapter when more than this far into it. */
 export const PREVIOUS_RESTARTS_AFTER_S = 3;
@@ -96,4 +96,55 @@ export function normalizeSpeed(speed: number): number {
 
 export function stepSpeed(speed: number, direction: 1 | -1): number {
   return normalizeSpeed(normalizeSpeed(speed) + direction * SPEED_STEP);
+}
+
+/** Smart rewind (Settings board): after a pause this long, resume a little earlier. */
+export const AUTO_REWIND_AFTER_MS = 5 * 60 * 1000;
+export const AUTO_REWIND_S = 10;
+
+/**
+ * Where to resume after a pause. With auto-rewind on, a pause of 5 minutes or more takes
+ * the position back 10 s (never before the start). Anything we cannot trust — no pause
+ * time, a clock that went backwards — leaves the position alone.
+ */
+export function autoRewindTarget(input: {
+  position: number;
+  /** When playback paused, ms since epoch; `undefined` if unknown. */
+  pausedAt: number | undefined;
+  now: number;
+  enabled: boolean;
+}): number {
+  const { position, pausedAt, now, enabled } = input;
+  if (!enabled || pausedAt === undefined || !Number.isFinite(pausedAt)) return position;
+  if (now - pausedAt < AUTO_REWIND_AFTER_MS) return position;
+  return Math.max(0, position - AUTO_REWIND_S);
+}
+
+/** How far ahead of a chapter end to stop, in real seconds (the time cannot be hit exactly). */
+export const CHAPTER_STOP_LOOKAHEAD_S = 0.25;
+/** A file that ends this close to a chapter end counts as ending at it. */
+export const CHAPTER_BOUNDARY_TOLERANCE_S = 0.5;
+
+/**
+ * "Play next chapter" is off: the chapter end to stop at, once playback is within a quarter
+ * of a second (real time) of it; otherwise `null`. The last chapter has no next one — that
+ * is the end of the book and is handled as such.
+ */
+export function chapterStopTarget(
+  chapters: readonly PlayerChapter[],
+  position: number,
+  speed: number,
+): number | null {
+  const index = chapterIndexAt(chapters, position);
+  if (index < 0 || index >= chapters.length - 1) return null;
+  const rate = Number.isFinite(speed) && speed > 0 ? speed : 1;
+  const end = chapters[index]!.end;
+  return (end - position) / rate <= CHAPTER_STOP_LOOKAHEAD_S ? end : null;
+}
+
+/** True when `time` is where a chapter other than the last one ends (± half a second). */
+export function isChapterBoundary(chapters: readonly PlayerChapter[], time: number): boolean {
+  return chapters
+    .slice(0, -1)
+    .some((chapter) => Math.abs(chapter.end - time) <= CHAPTER_BOUNDARY_TOLERANCE_S);
 }

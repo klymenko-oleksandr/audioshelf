@@ -259,5 +259,40 @@
   "share": {
     "copied": "Link copied",
     "failed": "Couldn't copy the link."
+  },
+  "settings": {
+    "title": "Settings",
+    "soon": "Soon",
+    "seconds": "{count} s",
+    "playback": {
+      "title": "Playback",
+      "speed": "Default speed",
+      "skipBack": "Skip back",
+      "skipForward": "Skip forward",
+      "autoRewind": "Auto-rewind on resume",
+      "autoRewindHint": "After a long pause, go back a few seconds so you catch up.",
+      "continue": "Play next chapter",
+      "continueHint": "Off: stop at the end of each chapter."
+    },
+    "appearance": {
+      "title": "Appearance",
+      "theme": "Theme",
+      "system": "System",
+      "light": "Light",
+      "dark": "Dark"
+    },
+    "language": {
+      "title": "Language"
+    },
+    "downloads": {
+      "title": "Downloads",
+      "wifiOnly": "Download over Wi-Fi only",
+      "wifiOnlyHint": "Save mobile data.",
+      "autoRemove": "Remove finished books after 7 days",
+      "autoRemoveHint": "Free up space automatically.",
+      "storage": "Storage used",
+      "storageHint": "Manage downloaded books.",
+      "manage": "Manage"
+    }
   }
 }

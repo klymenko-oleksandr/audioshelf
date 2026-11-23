@@ -1,7 +1,6 @@
 import type { Metadata } from 'next';
 import { getTranslations } from 'next-intl/server';
-import { LanguageSwitcher } from '@/components/language-switcher';
-import { PagePlaceholder } from '@/components/shell/page-placeholder';
+import { SettingsView } from '@/features/settings/components/settings-view';
 
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslations('pages.settings');
@@ -12,11 +11,11 @@ export default async function SettingsPage() {
   const t = await getTranslations('pages');
 
   return (
-    <PagePlaceholder title={t('settings.title')} note={t('comingSoon')}>
-      <section className="flex flex-col gap-2 pt-2">
-        <h2 className="text-label">{t('settings.language')}</h2>
-        <LanguageSwitcher />
-      </section>
-    </PagePlaceholder>
+    <div className="flex flex-col gap-4 px-4 pt-2 pb-6 md:px-6 md:pt-5 lg:px-8 lg:pt-7">
+      <h1 className="font-heading text-[26px] leading-8 font-semibold tracking-[-0.02em] md:text-[30px] md:leading-9 md:tracking-[-0.025em]">
+        {t('settings.title')}
+      </h1>
+      <SettingsView />
+    </div>
   );
 }

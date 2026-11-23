@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
+  AUTO_REWIND_AFTER_MS,
+  AUTO_REWIND_S,
+  autoRewindTarget,
+  chapterStopTarget,
+  isChapterBoundary,
   isFinished,
   nextChapterTarget,
   normalizeSpeed,
@@ -187,5 +192,93 @@ describe('speed — 0.5× to 3×, 0.1 steps, presets on a 0.05 grid', () => {
     const seen = [0.5];
     while (seen.at(-1)! < 3) seen.push(stepSpeed(seen.at(-1)!, 1));
     expect(seen).toEqual(Array.from({ length: 26 }, (_, i) => Number((0.5 + i * 0.1).toFixed(1))));
+  });
+});
+
+describe('autoRewindTarget — after a pause of 5 min or more, go back 10 s', () => {
+  const MIN = 60_000;
+  const base = { position: 1000, pausedAt: 0, now: 5 * MIN, enabled: true };
+
+  it('uses the numbers from the Settings board', () => {
+    expect(AUTO_REWIND_AFTER_MS).toBe(5 * MIN);
+    expect(AUTO_REWIND_S).toBe(10);
+  });
+
+  it('rewinds 10 s after exactly 5 minutes, and not a moment sooner', () => {
+    expect(autoRewindTarget(base)).toBe(990);
+    expect(autoRewindTarget({ ...base, now: 5 * MIN - 1 })).toBe(1000);
+  });
+
+  it('rewinds the same 10 s after a long pause, not more', () => {
+    expect(autoRewindTarget({ ...base, now: 3 * 24 * 60 * MIN })).toBe(990);
+  });
+
+  it('does nothing when the setting is off', () => {
+    expect(autoRewindTarget({ ...base, enabled: false })).toBe(1000);
+  });
+
+  it('does nothing when we do not know when playback paused', () => {
+    expect(autoRewindTarget({ ...base, pausedAt: undefined })).toBe(1000);
+    expect(autoRewindTarget({ ...base, pausedAt: Number.NaN })).toBe(1000);
+  });
+
+  it('does nothing when the clock went backwards', () => {
+    expect(autoRewindTarget({ ...base, pausedAt: 10 * MIN, now: 5 * MIN })).toBe(1000);
+  });
+
+  it('never goes before the start of the book', () => {
+    expect(autoRewindTarget({ ...base, position: 4 })).toBe(0);
+    expect(autoRewindTarget({ ...base, position: 10 })).toBe(0);
+    expect(autoRewindTarget({ ...base, position: 0 })).toBe(0);
+  });
+});
+
+describe('chapterStopTarget — where to stop when "play next chapter" is off', () => {
+  it('is null in the middle of a chapter', () => {
+    expect(chapterStopTarget(chapters, 300, 1)).toBeNull();
+    expect(chapterStopTarget(chapters, 1000, 1)).toBeNull();
+  });
+
+  it('returns the chapter end once it is within a quarter of a second', () => {
+    expect(chapterStopTarget(chapters, 599.8, 1)).toBe(600);
+    expect(chapterStopTarget(chapters, 1799.76, 1)).toBe(1800);
+    expect(chapterStopTarget(chapters, 599.7, 1)).toBeNull();
+  });
+
+  it('counts the quarter second in real time, so faster speeds stop earlier in book time', () => {
+    expect(chapterStopTarget(chapters, 599.6, 2)).toBe(600); // 0.4 s of book = 0.2 s real
+    expect(chapterStopTarget(chapters, 599.6, 1)).toBeNull();
+    expect(chapterStopTarget(chapters, 599.9, 0.5)).toBe(600); // 0.1 s of book = 0.2 s real
+    expect(chapterStopTarget(chapters, 599.8, 0.5)).toBeNull(); // 0.2 s of book = 0.4 s real
+  });
+
+  it('never stops at the end of the last chapter: that is the end of the book', () => {
+    expect(chapterStopTarget(chapters, 2099.9, 1)).toBeNull();
+  });
+
+  it('has nothing to stop for with one chapter or none', () => {
+    expect(chapterStopTarget([chapters[0]!], 599.9, 1)).toBeNull();
+    expect(chapterStopTarget([], 5, 1)).toBeNull();
+  });
+
+  it('treats a bad speed as 1×', () => {
+    expect(chapterStopTarget(chapters, 599.8, 0)).toBe(600);
+    expect(chapterStopTarget(chapters, 599.8, Number.NaN)).toBe(600);
+  });
+});
+
+describe('isChapterBoundary — did a file end where a chapter ends?', () => {
+  it('is true at a chapter end and within half a second of it', () => {
+    expect(isChapterBoundary(chapters, 600)).toBe(true);
+    expect(isChapterBoundary(chapters, 599.6)).toBe(true);
+    expect(isChapterBoundary(chapters, 600.4)).toBe(true);
+    expect(isChapterBoundary(chapters, 1800)).toBe(true);
+  });
+
+  it('is false elsewhere, at the start of the book, and at the end of the last chapter', () => {
+    expect(isChapterBoundary(chapters, 300)).toBe(false);
+    expect(isChapterBoundary(chapters, 601)).toBe(false);
+    expect(isChapterBoundary(chapters, 0)).toBe(false);
+    expect(isChapterBoundary(chapters, 2100)).toBe(false);
   });
 });

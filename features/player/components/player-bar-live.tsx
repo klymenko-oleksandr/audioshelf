@@ -1,6 +1,7 @@
 'use client';
 
 import { useTranslations } from 'next-intl';
+import { useSettings } from '@/features/settings/use-settings';
 import { useDelayedLoading } from '@/hooks/use-delayed-loading';
 import { formatClock, formatRemaining, formatSpeed, isWaiting, splitDuration } from '../core';
 import { getPlayer, usePlayerState } from '../player';
@@ -11,6 +12,7 @@ import { viewState } from './view-state';
 /** PlayerBarView connected to the real player. */
 export function PlayerBarLive() {
   const t = useTranslations('player');
+  const settings = useSettings();
   const state = usePlayerState();
   const spinnerVisible = useDelayedLoading(isWaiting(state.status));
   const { book, position, duration, chapterIndex, speed, status, sleep } = state;
@@ -46,6 +48,8 @@ export function PlayerBarLive() {
       speedLabel={formatSpeed(speed)}
       upToDate={book.ongoing}
       onPlayPause={() => player.toggle()}
+      skipBackSeconds={settings.skipBackSeconds}
+      skipForwardSeconds={settings.skipForwardSeconds}
       onSkipBack={() => player.skipBack()}
       onSkipForward={() => player.skipForward()}
       onPreviousChapter={() => player.previousChapter()}
