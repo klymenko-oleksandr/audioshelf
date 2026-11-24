@@ -13,6 +13,13 @@ const port = Number(process.env.E2E_DB_PORT ?? 54329);
 const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), 'utf8');
 
 const db = await PGlite.create({ extensions: { pg_trgm, unaccent } });
+// What Supabase provides and PGlite lacks (migration 0006 needs `auth.users` and the API roles).
+await db.exec(`
+  CREATE SCHEMA IF NOT EXISTS auth;
+  CREATE TABLE IF NOT EXISTS auth.users (id uuid PRIMARY KEY);
+  CREATE ROLE anon NOLOGIN;
+  CREATE ROLE authenticated NOLOGIN;
+`);
 for (const { tag } of JSON.parse(read('db/migrations/meta/_journal.json')).entries) {
   await db.exec(read(`db/migrations/${tag}.sql`).replaceAll('--> statement-breakpoint', ''));
 }

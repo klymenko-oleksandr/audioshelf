@@ -2,7 +2,7 @@
  * Drizzle schema for the `public` schema — the single source of truth for tables.
  *
  * Phase 3: the catalogue (books, tracks, chapters, authors, narrators, categories, moods).
- * Sync tables arrive in Phase 6.
+ * Phase 6b: the sync tables (`sync_*`), one set of rows per listener (ADR 4).
  *
  * Rules that hold for every table here:
  * - Only the Next.js server reads and writes them (ADR 4). Supabase also exposes `public`
@@ -11,6 +11,7 @@
  * - R2 keys are stored, never rebuilt (ADR 1).
  */
 import { relations, sql } from 'drizzle-orm';
+import { authUsers } from 'drizzle-orm/supabase';
 import {
   bigint,
   boolean,
@@ -18,9 +19,12 @@ import {
   doublePrecision,
   index,
   integer,
+  jsonb,
   pgEnum,
+  pgSequence,
   pgTable,
   primaryKey,
+  real,
   text,
   timestamp,
   uniqueIndex,
@@ -269,5 +273,124 @@ export const adminLoginAttempts = pgTable(
   (t) => [
     index('admin_login_attempts_last_attempt_at_idx').on(t.lastAttemptAt),
     check('admin_login_attempts_count_check', sql`${t.failedCount} >= 0`),
+  ],
+).enableRLS();
+
+// ── Sync (Phase 6b, ADR 4) ─────────────────────────────────────────────────────
+//
+// One row per listener and item. Every row carries the corrected client time it was last
+// written (`updated_at`), the device that wrote it, and a `seq` from one shared sequence: the
+// pull cursor. A removed item stays as a tombstone (`deleted_at`). The merge rules live in
+// `features/sync/merge.ts`; these tables only store the winner.
+//
+// `user_id` references Supabase's `auth.users`, which this schema does not manage: the table is
+// declared in `drizzle-orm/supabase` and left out of the migrations by `schemaFilter`.
+
+/** Shared by all four tables, so one number orders every change a listener has made. */
+export const syncChangeSeq = pgSequence('sync_change_seq');
+const seq = () =>
+  bigint({ mode: 'number' })
+    .notNull()
+    .default(sql`nextval('sync_change_seq')`);
+const syncUser = () =>
+  uuid()
+    .notNull()
+    .references(() => authUsers.id, { onDelete: 'cascade' });
+const syncBook = () =>
+  uuid()
+    .notNull()
+    .references(() => books.id, { onDelete: 'cascade' });
+const syncTime = () => timestamp({ withTimezone: true });
+
+export const syncFlagKind = pgEnum('sync_flag_kind', ['like', 'listen_later']);
+
+/** Each browser or phone that has pushed; its name and clock offset feed the conflict prompt. */
+export const syncDevices = pgTable(
+  'sync_devices',
+  {
+    userId: syncUser(),
+    deviceId: uuid().notNull(),
+    name: text().notNull().default(''),
+    /** `server now − client now` at the last push (ADR 4), stored clamped to a 32-bit integer. */
+    clockOffsetMs: integer().notNull().default(0),
+    lastPushAt: syncTime(),
+    lastSeenAt: syncTime().notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.deviceId] })],
+).enableRLS();
+
+export const syncProgress = pgTable(
+  'sync_progress',
+  {
+    userId: syncUser(),
+    bookId: syncBook(),
+    positionSeconds: doublePrecision().notNull(),
+    durationSeconds: doublePrecision().notNull(),
+    speed: real().notNull().default(1),
+    finished: boolean().notNull().default(false),
+    /** Removed from Continue listening. */
+    dismissedAt: syncTime(),
+    /** Tombstone: removed from History (the saved place is cleared too). */
+    deletedAt: syncTime(),
+    updatedAt: syncTime().notNull(),
+    deviceId: uuid().notNull(),
+    seq: seq(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.userId, t.bookId] }),
+    index('sync_progress_user_seq').on(t.userId, t.seq),
+  ],
+).enableRLS();
+
+export const syncFlags = pgTable(
+  'sync_flags',
+  {
+    userId: syncUser(),
+    bookId: syncBook(),
+    kind: syncFlagKind().notNull(),
+    addedAt: syncTime().notNull(),
+    deletedAt: syncTime(),
+    updatedAt: syncTime().notNull(),
+    deviceId: uuid().notNull(),
+    seq: seq(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.userId, t.bookId, t.kind] }),
+    index('sync_flags_user_seq').on(t.userId, t.seq),
+  ],
+).enableRLS();
+
+export const syncHistory = pgTable(
+  'sync_history',
+  {
+    userId: syncUser(),
+    bookId: syncBook(),
+    startedAt: syncTime().notNull(),
+    lastPlayedAt: syncTime().notNull(),
+    finishedAt: syncTime(),
+    deletedAt: syncTime(),
+    updatedAt: syncTime().notNull(),
+    deviceId: uuid().notNull(),
+    seq: seq(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.userId, t.bookId] }),
+    index('sync_history_user_seq').on(t.userId, t.seq),
+  ],
+).enableRLS();
+
+export const syncSettings = pgTable(
+  'sync_settings',
+  {
+    userId: syncUser(),
+    key: text().notNull(),
+    value: jsonb().notNull(),
+    updatedAt: syncTime().notNull(),
+    deviceId: uuid().notNull(),
+    seq: seq(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.userId, t.key] }),
+    index('sync_settings_user_seq').on(t.userId, t.seq),
   ],
 ).enableRLS();
