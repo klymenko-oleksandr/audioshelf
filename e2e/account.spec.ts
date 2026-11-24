@@ -152,8 +152,9 @@ test.describe('signed in', () => {
   }) => {
     await signedIn(page);
     await page.goto('/settings');
-    await expect(page.getByText('sasha@example.com')).toBeVisible();
-    await expect(page.getByText('Oleksandr Klymenko')).toBeVisible();
+    const main = page.getByRole('main');
+    await expect(main.getByText('sasha@example.com')).toBeVisible();
+    await expect(main.getByText('Oleksandr Klymenko')).toBeVisible();
     await page.getByRole('button', { name: 'Sign out' }).click();
     await expect(
       page.getByRole('main').getByRole('link', { name: 'Continue with Google' }),
