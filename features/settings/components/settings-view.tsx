@@ -2,6 +2,7 @@
 
 import { useTranslations } from 'next-intl';
 import { LanguageSwitcher } from '@/components/language-switcher';
+import { AccountCard } from '@/features/account/components/account-card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
@@ -84,6 +85,7 @@ export function SettingsView() {
       </Card>
 
       <div className="flex flex-col gap-4">
+        <AccountCard />
         <Card title={t('appearance.title')}>
           <Row title={t('appearance.theme')}>
             <Segmented

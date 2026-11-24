@@ -1,8 +1,8 @@
-import { RiGoogleFill, RiSearchLine } from '@remixicon/react';
+import { RiSearchLine } from '@remixicon/react';
 import Link from 'next/link';
 import { getTranslations } from 'next-intl/server';
 import { Suspense } from 'react';
-import { buttonVariants } from '@/components/ui/button';
+import { AccountControl } from '@/features/account/components/account-control';
 import { SearchField } from '@/features/search/components/search-field';
 import { BrandLink } from './brand';
 
@@ -38,10 +38,7 @@ export async function TopBar() {
 
       <div className="hidden grow lg:block" />
 
-      <Link href="/signin" className={buttonVariants({ className: 'px-3' })}>
-        <RiGoogleFill size={16} aria-hidden className="hidden md:block" />
-        {t('auth.signIn')}
-      </Link>
+      <AccountControl />
     </header>
   );
 }

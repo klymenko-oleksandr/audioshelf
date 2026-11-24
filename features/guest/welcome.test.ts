@@ -38,9 +38,11 @@ describe('welcomeSeen: one place for the rule (Phase 6 adds the account case)', 
     expect(welcomeSeen({ browserSeen: true })).toBe(true);
   });
 
-  it('a signed-in listener follows the account, not the browser', () => {
+  it('a signed-in listener is welcomed once per account: seen on any device counts', () => {
     expect(welcomeSeen({ browserSeen: false, account: { seen: true } })).toBe(true);
-    expect(welcomeSeen({ browserSeen: true, account: { seen: false } })).toBe(false);
+    expect(welcomeSeen({ browserSeen: false, account: { seen: false } })).toBe(false);
+    // Seen in this browser just now: the account is told, so no second welcome on this account.
+    expect(welcomeSeen({ browserSeen: true, account: { seen: false } })).toBe(true);
   });
 });
 

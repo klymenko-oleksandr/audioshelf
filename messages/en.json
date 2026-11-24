@@ -65,7 +65,9 @@
     "launcherPlaceholder": "Books, authors, narrators"
   },
   "auth": {
-    "signIn": "Sign in"
+    "signIn": "Sign in",
+    "account": "Account and settings",
+    "avatarAlt": "Your profile picture"
   },
   "guest": {
     "title": "Keep your place on every device",
@@ -380,6 +382,34 @@
       "storage": "Storage used",
       "storageHint": "Manage downloaded books.",
       "manage": "Manage"
+    },
+    "account": {
+      "title": "Account",
+      "guestBody": "You're listening as a guest. Progress, likes and stats stay on this device until you sign in.",
+      "signIn": "Continue with Google",
+      "signedInWith": "Signed in with Google",
+      "signOut": "Sign out",
+      "signingOut": "Signing out…"
+    }
+  },
+  "signin": {
+    "title": "Keep your place on every device",
+    "lead": "Sign in and pick up exactly where you stopped, on your phone, laptop or tablet.",
+    "benefits": {
+      "resume": "Resume from the same second anywhere",
+      "liked": "Liked books and your Listen later list",
+      "stats": "Listening stats across all devices"
+    },
+    "google": "Continue with Google",
+    "starting": "Opening Google…",
+    "guest": "Keep listening as a guest",
+    "close": "Close",
+    "signedIn": "You're signed in as {name}.",
+    "continue": "Continue",
+    "errors": {
+      "cancelled": "Sign-in was cancelled. You can try again whenever you like.",
+      "failed": "We couldn't sign you in. Please try again.",
+      "unavailable": "Sign-in isn't available right now. You can keep listening as a guest."
     }
   }
 }

@@ -3,6 +3,8 @@ import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { NextIntlClientProvider } from 'next-intl';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { fakeAccountStore, TEST_USER } from '@/features/account/test-support';
+import { resetAccountStoreForTests, setAccountStoreForTests } from '@/features/account/use-account';
 import { getLocalDb, resetLocalDbForTests } from '@/lib/local-db/shared';
 import en from '@/messages/en.json';
 import { readWelcomeGate } from '../gate';
@@ -25,6 +27,7 @@ beforeEach(() => {
 });
 
 afterEach(async () => {
+  resetAccountStoreForTests();
   resetGuestStoreForTests();
   resetLocalDbForTests();
   delete root.dataset.welcome;
@@ -137,5 +140,52 @@ describe('WelcomeGate', () => {
       await getGuestStore().load(); // what the ping from the other tab triggers
     });
     expect(welcome()).not.toBeInTheDocument();
+  });
+
+  describe('signed in: once per account', () => {
+    it('does not welcome an account that has seen it on another device', async () => {
+      setAccountStoreForTests(
+        fakeAccountStore({ ...TEST_USER, user_metadata: { welcomeSeenAt: 123 } }).store,
+      );
+      root.dataset.welcome = 'pending';
+      renderGate();
+      await waitFor(() => expect(readWelcomeGate()).toBeUndefined());
+      expect(welcome()).not.toBeInTheDocument();
+      expect(localStorage.getItem(WELCOME_MIRROR_KEY)).toBe('1');
+    });
+
+    it('welcomes an account that has not, and tells the account when it is done', async () => {
+      const user = userEvent.setup();
+      const markWelcomeSeen = vi.fn(async () => undefined);
+      setAccountStoreForTests(fakeAccountStore(TEST_USER, { markWelcomeSeen }).store);
+      root.dataset.welcome = 'pending';
+      renderGate();
+      await screen.findByRole('dialog');
+      await user.click(screen.getAllByRole('button', { name: 'Skip' })[0]!);
+      expect(welcome()).not.toBeInTheDocument();
+      await waitFor(() => expect(markWelcomeSeen).toHaveBeenCalledTimes(1));
+    });
+
+    it('waits for the account before deciding (no welcome flashing up for a returning account)', async () => {
+      let release: (user: typeof TEST_USER | null) => void = () => undefined;
+      const pending = new Promise<typeof TEST_USER | null>((resolve) => (release = resolve));
+      setAccountStoreForTests(fakeAccountStore(null, { loadUser: () => pending }).store);
+      root.dataset.welcome = 'pending';
+      renderGate();
+      await waitFor(() => expect(getGuestStore().getSnapshot().ready).toBe(true));
+      expect(welcome()).not.toBeInTheDocument();
+      expect(readWelcomeGate()).toBe('pending');
+      await act(async () => release({ ...TEST_USER, user_metadata: { welcomeSeenAt: 1 } }));
+      await waitFor(() => expect(readWelcomeGate()).toBeUndefined());
+      expect(welcome()).not.toBeInTheDocument();
+    });
+
+    it('a guest who saw it and then signs in tells the account, so a new device skips it', async () => {
+      const markWelcomeSeen = vi.fn(async () => undefined);
+      localStorage.setItem(WELCOME_MIRROR_KEY, '1');
+      setAccountStoreForTests(fakeAccountStore(TEST_USER, { markWelcomeSeen }).store);
+      renderGate();
+      await waitFor(() => expect(markWelcomeSeen).toHaveBeenCalledTimes(1));
+    });
   });
 });

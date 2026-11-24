@@ -1,6 +1,6 @@
-import { RiGoogleFill, RiSettings3Line } from '@remixicon/react';
-import Link from 'next/link';
+import { RiSettings3Line } from '@remixicon/react';
 import { getTranslations } from 'next-intl/server';
+import { SidebarAccount } from '@/features/account/components/sidebar-account';
 import { BrandLink } from './brand';
 import { sidebarLibrary, sidebarMain, type NavItem } from './nav-items';
 import { NavLink } from './nav-link';
@@ -70,18 +70,7 @@ export async function Sidebar() {
 
       <div className="grow" />
 
-      {/* Everyone is a guest until Google sign-in lands (Phase 6). */}
-      <div className="border-sidebar-border bg-background flex flex-col gap-3 rounded-xl border p-4">
-        <div className="text-card-title">{t('guest.title')}</div>
-        <p className="text-muted-foreground text-[12px] leading-[18px]">{t('guest.body')}</p>
-        <Link
-          href="/signin"
-          className="border-input bg-background hover:bg-accent flex min-h-8 items-center justify-center gap-2 rounded-md border py-1 text-[12px] font-medium whitespace-nowrap shadow-xs"
-        >
-          <RiGoogleFill size={16} aria-hidden className="shrink-0" />
-          {t('guest.cta')}
-        </Link>
-      </div>
+      <SidebarAccount />
 
       <NavLink
         href="/settings"

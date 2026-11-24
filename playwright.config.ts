@@ -89,6 +89,10 @@ export default defineConfig({
             S3_ACCESS_KEY_ID: 'e2e',
             S3_SECRET_ACCESS_KEY: 'e2e-secret',
             S3_BUCKET: 'e2e-bucket',
+            // A Supabase that does not exist: specs fake the session in the browser and intercept
+            // the few requests it makes, so no run ever reaches real Google or Supabase.
+            NEXT_PUBLIC_SUPABASE_URL: 'http://localhost:54331',
+            NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: 'e2e-publishable-key',
             ADMIN_PASSKEYS,
             ADMIN_SESSION_SECRET,
             ADMIN_SETUP_TOKEN,

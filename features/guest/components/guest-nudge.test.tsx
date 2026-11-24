@@ -10,6 +10,8 @@ import {
 } from '@/features/library/flags/use-library-flags';
 import { resetLocalDbForTests } from '@/lib/local-db/shared';
 import en from '@/messages/en.json';
+import { fakeAccountStore, TEST_USER } from '@/features/account/test-support';
+import { resetAccountStoreForTests, setAccountStoreForTests } from '@/features/account/use-account';
 import { getGuestStore, resetGuestStoreForTests } from '../use-guest';
 import { GuestNudge } from './guest-nudge';
 
@@ -45,6 +47,7 @@ afterEach(async () => {
   toastStore.dismiss('close');
   resetLibraryFlagsStoreForTests();
   resetGuestStoreForTests();
+  resetAccountStoreForTests();
   resetLocalDbForTests();
   await indexedDB
     .databases()
@@ -171,5 +174,31 @@ describe('GuestNudge', () => {
     // One real add (a), one real add (b); the Undo and the removal added nothing.
     await waitFor(() => expect(getGuestStore().getSnapshot().nudge.actions).toBe(2));
     expect(nudge()).not.toBeInTheDocument();
+  });
+  it('is never shown to a signed-in listener, however many books they add', async () => {
+    setAccountStoreForTests(fakeAccountStore(TEST_USER).store);
+    renderNudge();
+    await add('like', 'a');
+    await add('like', 'b');
+    await add('listenLater', 'c');
+    await add('like', 'd');
+    await waitFor(() => expect(getGuestStore().getSnapshot().nudge.actions).toBe(4));
+    expect(nudge()).not.toBeInTheDocument();
+  });
+
+  it('waits until it is known who is listening', async () => {
+    let release: (user: typeof TEST_USER | null) => void = () => undefined;
+    const pending = new Promise<typeof TEST_USER | null>((resolve) => (release = resolve));
+    setAccountStoreForTests(fakeAccountStore(null, { loadUser: () => pending }).store);
+    renderNudge();
+    await add('like', 'a');
+    await add('like', 'b');
+    await add('like', 'c');
+    await waitFor(() => expect(getGuestStore().getSnapshot().nudge.actions).toBe(3));
+    expect(nudge()).not.toBeInTheDocument();
+    await act(async () => release(null));
+    expect(
+      await screen.findByRole('dialog', { name: 'Keep these on every device' }),
+    ).toBeInTheDocument();
   });
 });

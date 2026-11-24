@@ -1,9 +1,10 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { getAccountStore, useAccount } from '@/features/account/use-account';
 import { readWelcomeGate, setWelcomeGate } from '../gate';
 import { getGuestStore, useGuest } from '../use-guest';
-import { shouldShowWelcome, welcomeSeen, writeWelcomeMirror } from '../welcome';
+import { shouldShowWelcome, WELCOME_MIRROR_KEY, welcomeSeen, writeWelcomeMirror } from '../welcome';
 import { WelcomeScreen } from './welcome-screen';
 
 /**
@@ -19,18 +20,24 @@ import { WelcomeScreen } from './welcome-screen';
  */
 export function WelcomeGate() {
   const guest = useGuest();
+  const account = useAccount();
   /** The rules said "show it" for this visit. */
   const [due, setDue] = useState(false);
   const decided = useRef(false);
 
   useEffect(() => {
-    if (decided.current || !guest.ready) return;
+    // Who is listening decides the rule (once per browser for a guest, once per account for a
+    // signed-in listener), so wait until both are known.
+    if (decided.current || !guest.ready || account.status === 'loading') return;
     decided.current = true;
     if (readWelcomeGate() !== 'pending') return;
 
     const show = shouldShowWelcome({
       landing: true, // the page script only sets `pending` on a plain home page
-      seen: welcomeSeen({ browserSeen: guest.welcomeSeen }),
+      seen: welcomeSeen({
+        browserSeen: guest.welcomeSeen,
+        account: account.account ? { seen: account.account.welcomeSeen } : null,
+      }),
       hasActivity: guest.hasActivity,
     });
     if (show) {
@@ -42,8 +49,9 @@ export function WelcomeGate() {
     // Already seen here (Dexie knows, the mirror did not) or an existing listener.
     writeWelcomeMirror();
     void getGuestStore().markWelcomeSeen();
+    void getAccountStore().markWelcomeSeen();
     setWelcomeGate('done');
-  }, [guest]);
+  }, [guest, account]);
 
   const open = due && !guest.welcomeSeen;
 
@@ -59,6 +67,27 @@ export function WelcomeGate() {
     setWelcomeGate('done');
   }, [due, guest.welcomeSeen]);
 
+  // A listener who saw it as a guest and then signed in: the account is told too, so a new
+  // device on this account does not welcome them a second time.
+  useEffect(() => {
+    if (open || !guest.ready || account.status !== 'signedIn' || account.account.welcomeSeen)
+      return;
+    let mirrored = false;
+    try {
+      mirrored = window.localStorage.getItem(WELCOME_MIRROR_KEY) === '1';
+    } catch {
+      // Storage blocked: the Dexie flag below still counts.
+    }
+    if (guest.welcomeSeen || mirrored) void getAccountStore().markWelcomeSeen();
+  }, [open, guest.ready, guest.welcomeSeen, account]);
+
   if (!open) return null;
-  return <WelcomeScreen onDone={() => void getGuestStore().markWelcomeSeen()} />;
+  return (
+    <WelcomeScreen
+      onDone={() => {
+        void getGuestStore().markWelcomeSeen();
+        void getAccountStore().markWelcomeSeen();
+      }}
+    />
+  );
 }
