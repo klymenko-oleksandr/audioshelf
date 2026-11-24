@@ -10,6 +10,7 @@ import { useLibraryFlags } from '@/features/library/flags/use-library-flags';
 import { useNowPlayingOpen } from '@/features/player/ui/player-ui';
 import { readWelcomeGate, WELCOME_RESOLVED_EVENT } from '../gate';
 import { nudgeDue, nudgeVisible, signinHref } from '../nudge';
+import { useAccount } from '@/features/account/use-account';
 import { getGuestStore, useGuest } from '../use-guest';
 
 /** A toast is on screen. Toasts are one at a time, and the nudge must never stack on one. */
@@ -44,6 +45,7 @@ function useWelcomeOpen(): boolean {
 export function GuestNudge() {
   const t = useTranslations('guest.nudge');
   const guest = useGuest();
+  const account = useAccount();
   const flags = useLibraryFlags();
   const playerOpen = useNowPlayingOpen();
   const toastVisible = useToastVisible();
@@ -55,8 +57,9 @@ export function GuestNudge() {
 
   const visible = nudgeVisible({
     due: nudgeDue(guest.nudge, now),
-    ready: guest.ready,
-    guest: true, // no accounts before Phase 6
+    // Wait until we know who is listening, so a signed-in listener never sees it flash.
+    ready: guest.ready && account.status !== 'loading',
+    guest: account.status === 'guest',
     playerOpen,
     toastVisible,
     welcomeOpen,

@@ -18,13 +18,15 @@ export function isWelcomeLanding(pathname: string, hash: string): boolean {
 export interface WelcomeSeenInput {
   /** This browser has seen it (Dexie, or the localStorage mirror). */
   browserSeen: boolean;
-  /** Phase 6: the signed-in account's own flag. `null` / absent for a guest. */
+  /** The signed-in account's own flag (Phase 6a). `null` / absent for a guest. */
   account?: { seen: boolean } | null;
 }
 
 /** The one place that says "has this listener seen the welcome". */
 export function welcomeSeen(input: WelcomeSeenInput): boolean {
-  return input.account ? input.account.seen : input.browserSeen;
+  // Once per account: seen on any device counts. Seen in this browser also counts for the
+  // account (the gate writes it back), so a listener who just saw it is not welcomed twice.
+  return input.account ? input.account.seen || input.browserSeen : input.browserSeen;
 }
 
 export interface ShowWelcomeInput {
