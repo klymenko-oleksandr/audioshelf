@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { waitForSaved } from './saved';
 
 // Read-only: likes and Listen later live in the browser (IndexedDB), nothing is written to the
 // server. Every test gets a fresh browser context, so it starts with nothing liked.
@@ -68,6 +69,7 @@ test.describe('likes and Listen later', () => {
     await expect(
       page.getByRole('main').getByRole('button', { name: 'Unlike' }).first(),
     ).toBeVisible();
+    await waitForSaved(page, 'likes', 1);
 
     await page.reload();
     await expect(
@@ -162,6 +164,7 @@ test.describe('likes and Listen later', () => {
     await expect(
       page.getByRole('main').getByRole('button', { name: 'Unlike' }).first(),
     ).toBeVisible();
+    await waitForSaved(page, 'likes', 1);
     await page.evaluate(
       () =>
         new Promise<void>((resolve, reject) => {

@@ -59,6 +59,12 @@ export interface FlagsStoreOptions {
   repo: FlagsRepo;
   /** Tells other tabs about a change, and tells this one about theirs. */
   channel?: SettingsChannel;
+  /**
+   * Called once for every add made by the listener (a like or Listen later turned on). Not
+   * called for a removal, for Undo (an Undo of a removal puts the old row back, which is not a
+   * new add) or when a finished book leaves Listen later. Feeds the guest nudge counter.
+   */
+  onAdd?: (kind: FlagKind, bookId: string) => void;
 }
 
 /** A change made here that storage may not have confirmed yet. */
@@ -153,6 +159,8 @@ export class LibraryFlagsStore {
     // What a removal would tombstone: Undo puts exactly this back.
     const previous = this.stored[kind].get(bookId);
     await this.apply(kind, bookId, !wasOn);
+    // After the like is saved, so the counter's own write never competes with it.
+    if (!wasOn) this.countAdd(kind, bookId);
 
     let undone = false;
     return {
@@ -183,6 +191,15 @@ export class LibraryFlagsStore {
     this.stopListening?.();
     this.options.channel?.close();
     this.listeners.clear();
+  }
+
+  /** A broken counter must never break a like. */
+  private countAdd(kind: FlagKind, bookId: string): void {
+    try {
+      this.options.onAdd?.(kind, bookId);
+    } catch (error) {
+      console.warn('Could not count the add.', error);
+    }
   }
 
   private whenReady(): Promise<void> {

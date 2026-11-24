@@ -11,6 +11,18 @@ const E2E_DB_PORT = 54329;
 const E2E_R2_PORT = 54330;
 const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? `http://localhost:${PORT}`;
 
+// Every test starts in a fresh browser, and a fresh browser gets the welcome screen on Home.
+// Unless a spec asks for it (e2e/guest.spec.ts clears this), it has already been seen.
+const WELCOME_SEEN = {
+  cookies: [],
+  origins: [
+    {
+      origin: new URL(baseURL).origin,
+      localStorage: [{ name: 'audioshelf:welcome-seen', value: '1' }],
+    },
+  ],
+};
+
 export default defineConfig({
   testDir: './e2e',
   fullyParallel: true,
@@ -19,6 +31,7 @@ export default defineConfig({
   reporter: process.env.CI ? [['github'], ['html', { open: 'never' }]] : 'list',
   use: {
     baseURL,
+    storageState: WELCOME_SEEN,
     trace: 'on-first-retry',
     // PW_CHANNEL=chrome uses the locally installed Chrome instead of the bundled Chromium.
     channel: process.env.PW_CHANNEL || undefined,
