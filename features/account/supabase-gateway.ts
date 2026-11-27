@@ -7,12 +7,16 @@ import type { AuthGateway } from './store';
 export function createSupabaseGateway(client: SupabaseClient, origin: () => string): AuthGateway {
   return {
     async loadUser() {
-      const { data } = await client.auth.getSession();
+      const { data, error } = await client.auth.getSession();
+      // Not the same as "signed out": offline with an expired token ends up here.
+      if (error) throw error;
       return data.session?.user ?? null;
     },
 
     onChange(callback) {
-      const { data } = client.auth.onAuthStateChange((_event, session) => {
+      const { data } = client.auth.onAuthStateChange((event, session) => {
+        // `loadUser` reads the first session; this event also says "nobody" when it failed.
+        if (event === 'INITIAL_SESSION') return;
         callback(session?.user ?? null);
       });
       return () => data.subscription.unsubscribe();

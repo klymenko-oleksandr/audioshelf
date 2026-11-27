@@ -1,7 +1,7 @@
 /**
  * Local playback progress, one record per book (PRD: Player → Position saving).
- * Position is book time in seconds. Phase 6 syncs these records; until then they live on
- * this device only, which is also exactly how guests work.
+ * Position is book time in seconds. A signed-in listener's records are synced (Phase 6c); a
+ * guest's stay on this device.
  */
 export interface ProgressRecord {
   bookId: string;
@@ -26,9 +26,15 @@ export interface ProgressRecord {
    * `dismissProgress` sets it.
    */
   dismissedAt?: number;
+  /**
+   * Tombstone: the saved place was cleared ("Remove from History"). Kept so the removal can
+   * be pushed; `ProgressStore.all()` never returns such a row.
+   */
+  deletedAt?: number;
 }
 
 export interface ProgressStore {
+  /** Saved places, without cleared ones. */
   all(): Promise<ProgressRecord[]>;
   put(record: ProgressRecord): Promise<void>;
   /** Forget a book's saved place ("Remove from History"). */

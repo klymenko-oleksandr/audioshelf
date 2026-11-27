@@ -1,3 +1,4 @@
+import { queueChange, settingChange, trackedTables } from '@/features/sync/client/outbox';
 import type { LocalDb } from '@/lib/local-db/db';
 import type { SettingRecord } from '@/lib/local-db/types';
 import type { SettingsChannel } from './channel';
@@ -17,9 +18,11 @@ export interface SettingsRepo {
 export function createDexieSettingsRepo(db: LocalDb): SettingsRepo {
   return {
     load: () => db.settings.toArray(),
-    put: async (record) => {
-      await db.settings.put(record);
-    },
+    put: (record) =>
+      db.transaction('rw', trackedTables(db, db.settings), async () => {
+        await db.settings.put(record);
+        await queueChange(db, settingChange(record));
+      }),
   };
 }
 

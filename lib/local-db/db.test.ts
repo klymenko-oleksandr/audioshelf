@@ -71,6 +71,7 @@ describe('LocalDb upgrade from version 1', () => {
       'likes',
       'listenLater',
       'meta',
+      'outbox',
       'progress',
       'settings',
     ]);

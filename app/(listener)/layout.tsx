@@ -4,6 +4,7 @@ import { AppShell } from '@/components/shell/app-shell';
 import { Splash } from '@/components/shell/splash';
 import { GuestNudge } from '@/features/guest/components/guest-nudge';
 import { WelcomeGate } from '@/features/guest/components/welcome-gate';
+import { SyncRunner } from '@/features/sync/components/sync-runner';
 
 /**
  * Everything a listener sees: splash, navigation, player, and the guest prompts (welcome
@@ -20,6 +21,7 @@ export default function ListenerLayout({ children }: Readonly<{ children: ReactN
       <Suspense fallback={null}>
         <GuestNudge />
       </Suspense>
+      <SyncRunner />
       <AppReady />
     </>
   );

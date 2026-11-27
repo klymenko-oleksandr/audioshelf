@@ -5,6 +5,7 @@ import { createMemoryProgressStore, type ProgressRecord } from '../storage/progr
 import {
   AudioEngine,
   DEFAULT_PLAYBACK,
+  DISMISS_STEP_MS,
   type PlaybackSettings,
   SAVE_INTERVAL_MS,
   SLEEP_TICK_MS,
@@ -1436,5 +1437,118 @@ describe('Removing a book from Continue listening and from History (Phase 5c)', 
     t.store.records.delete('b');
     await t.engine.refreshProgress();
     expect(t.engine.getProgress('b')).toBeUndefined();
+  });
+});
+
+describe('what sync needs from the engine (6c)', () => {
+  it('does not re-stamp the time of a place that has not changed', async () => {
+    const { engine, tick, saved } = setup([record('a', 700)]);
+    await engine.init();
+    tick(60_000);
+    await engine.flush();
+    expect(saved()).toMatchObject({ position: 700, updatedAt: NOW - 60_000 });
+  });
+
+  it('saves a pause even when the position has not moved since the last save', async () => {
+    const { engine, audio, tick, saved } = setup();
+    await engine.init();
+    engine.start(book);
+    audio.becomeReady();
+    tick(SAVE_INTERVAL_MS);
+    engine.pause();
+    expect(saved()!.pausedAt).toBeDefined();
+    const at = saved()!.updatedAt;
+    tick(1000);
+    await engine.flush();
+    expect(saved()!.updatedAt).toBe(at);
+  });
+
+  it('moves the time on enough for sync to see a dismissal and its Undo', async () => {
+    // The server corrects each push with that request's own clock offset, which includes the
+    // network delay, so two writes must be further apart than that delay can vary.
+    const { engine, tick, saved } = setup([record('a', 700, { updatedAt: NOW - 3_600_000 })]);
+    await engine.init();
+    await engine.dismissProgress('a', true);
+    expect(saved()!.updatedAt).toBe(NOW - 3_600_000 + DISMISS_STEP_MS);
+    tick(3000);
+    await engine.dismissProgress('a', false);
+    expect(saved()!.updatedAt).toBe(NOW - 3_600_000 + 2 * DISMISS_STEP_MS);
+    expect(saved()!.dismissedAt).toBeUndefined();
+  });
+
+  it('never dates a dismissal in the future, and always after the version it changes', async () => {
+    const { engine, tick, saved } = setup([record('a', 700, { updatedAt: NOW - 5000 })]);
+    await engine.init();
+    await engine.dismissProgress('a', true);
+    expect(saved()!.updatedAt).toBe(NOW);
+    await engine.dismissProgress('a', false);
+    expect(saved()!.updatedAt).toBe(NOW + 1);
+    tick(4000);
+    await engine.dismissProgress('a', true);
+    expect(saved()!.updatedAt).toBe(NOW + 4000);
+  });
+
+  describe('a newer stored place for the loaded book', () => {
+    async function pulled() {
+      const world = setup([record('a', 700)]);
+      await world.engine.init();
+      await world.store.put(record('a', 1500, { updatedAt: NOW - 1000 }));
+      await world.engine.refreshProgress();
+      return world;
+    }
+
+    it('does not move the player, and a hidden tab does not overwrite it', async () => {
+      const { engine, position, saved } = await pulled();
+      expect(position()).toBe(700);
+      await engine.flush();
+      expect(saved()!.position).toBe(1500);
+    });
+
+    it('is taken over when the listener moves on without having played', async () => {
+      const { engine, saved } = await pulled();
+      engine.start(other);
+      expect(saved()!.position).toBe(1500);
+      expect(engine.getProgress('a')!.position).toBe(1500);
+    });
+
+    it('is not overwritten by dismissing the card', async () => {
+      const { engine, position, saved } = await pulled();
+      await engine.dismissProgress('a', true);
+      expect(saved()).toMatchObject({ position: 1500, dismissedAt: NOW });
+      expect(position()).toBe(700);
+    });
+
+    it('gives way to what the listener plays here', async () => {
+      const { engine, saved } = await pulled();
+      engine.seek(800);
+      engine.close();
+      expect(saved()!.position).toBe(800);
+      expect(engine.getProgress('a')!.position).toBe(800);
+    });
+  });
+
+  it('resets without saving anything', async () => {
+    const { engine, audio, store, tick, status } = setup();
+    await engine.init();
+    engine.start(book);
+    audio.becomeReady();
+    tick(2000);
+    const put = vi.spyOn(store, 'put');
+    engine.reset();
+    tick(SAVE_INTERVAL_MS * 2);
+    await engine.flush();
+    expect(status()).toBe('idle');
+    expect(audio.paused).toBe(true);
+    expect(engine.getAllProgress()).toEqual([]);
+    expect(put).not.toHaveBeenCalled();
+  });
+
+  it('gives up a restore that a reset overtook', async () => {
+    const { engine, status } = setup([record('a', 700)]);
+    const ready = engine.init();
+    engine.reset();
+    await ready;
+    expect(status()).toBe('idle');
+    expect(engine.getAllProgress()).toEqual([]);
   });
 });

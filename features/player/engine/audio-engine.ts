@@ -100,6 +100,8 @@ export interface AudioEngineOptions {
 }
 
 export const SAVE_INTERVAL_MS = 5000;
+/** How far dismissing a card (or Undo) moves a saved place's time on, at most. */
+export const DISMISS_STEP_MS = 60_000;
 /** How often the sleep timer is checked; fine enough for a smooth 10 s fade. */
 export const SLEEP_TICK_MS = 250;
 
@@ -141,8 +143,15 @@ export class AudioEngine {
   private saveTimer: ReturnType<typeof setInterval> | null = null;
   /** The loaded book whose saved place was cleared; it is not saved again until it plays. */
   private clearedFor: string | null = null;
+  /**
+   * A newer stored place for the loaded book (sync, another tab). The player is not moved;
+   * the cache takes it over when the listener leaves the book without having played on.
+   */
+  private newer: ProgressRecord | null = null;
   private ready: Promise<void> | null = null;
   private progressVersion = 0;
+  /** Counts resets, so a restore that was under way gives up. */
+  private generation = 0;
   private sleepTicker: ReturnType<typeof setInterval> | null = null;
   /** When playback last paused; `undefined` while it plays or when unknown. */
   private pausedAt: number | undefined;
@@ -183,11 +192,22 @@ export class AudioEngine {
    * place and History stay. Does nothing for a book with no saved place.
    */
   async dismissProgress(bookId: string, dismissed: boolean): Promise<void> {
-    const record = this.progress.get(bookId);
-    if (!record) return;
-    const next: ProgressRecord = { ...record };
+    const cached = this.progress.get(bookId);
+    if (!cached) return;
+    // Never write over a newer stored place with the one this tab has loaded.
+    const record = this.newer?.bookId === bookId ? this.newer : cached;
+    // Sync takes the later write, so the time must move on or an Undo would lose to the
+    // dismissal. The server corrects each push with that request's clock offset (network
+    // delay included), so a millisecond is not enough; a minute at most, and never past now,
+    // hardly reorders Continue listening.
+    const updatedAt = Math.max(
+      record.updatedAt + 1,
+      Math.min(this.options.now(), record.updatedAt + DISMISS_STEP_MS),
+    );
+    const next: ProgressRecord = { ...record, updatedAt };
     delete next.dismissedAt;
     if (dismissed) next.dismissedAt = this.options.now();
+    if (this.newer?.bookId === bookId) this.newer = next;
     this.progress.set(bookId, next);
     this.progressVersion++;
     this.emit();
@@ -199,6 +219,7 @@ export class AudioEngine {
   /** Forget a book's saved place entirely ("Remove from History"). */
   async clearProgress(bookId: string): Promise<void> {
     if (this.state.book?.id === bookId) this.clearedFor = bookId;
+    if (this.newer?.bookId === bookId) this.newer = null;
     if (!this.progress.delete(bookId)) return;
     this.progressVersion++;
     this.emit();
@@ -206,9 +227,9 @@ export class AudioEngine {
   }
 
   /**
-   * Re-read saved places after another tab changed them (a book removed from Continue
-   * listening or History, or played there). The book loaded in this tab is left alone: this
-   * tab is the one that knows where it is.
+   * Re-read saved places after another tab or sync changed them (a book removed from
+   * Continue listening or History, or played elsewhere). The book loaded in this tab is left
+   * alone: the player is never moved under the listener.
    */
   async refreshProgress(): Promise<void> {
     const records = await this.options.store.all().catch(() => null);
@@ -218,7 +239,11 @@ export class AudioEngine {
     const seen = new Set<string>();
     for (const record of records) {
       seen.add(record.bookId);
-      if (record.bookId === loaded) continue;
+      if (record.bookId === loaded) {
+        const cached = this.progress.get(record.bookId);
+        if (cached && record.updatedAt > cached.updatedAt) this.newer = record;
+        continue;
+      }
       const mine = this.progress.get(record.bookId);
       if (
         !mine ||
@@ -249,10 +274,12 @@ export class AudioEngine {
    * Safe to call more than once; resolves when the cache is warm.
    */
   init(): Promise<void> {
+    const generation = this.generation;
     this.ready ??= this.options.store
       .all()
       .catch(() => [] as ProgressRecord[])
       .then(async (records) => {
+        if (generation !== this.generation) return;
         for (const record of records) {
           // Anything saved since init() started is newer than what the store returned.
           if (!this.progress.has(record.bookId)) this.progress.set(record.bookId, record);
@@ -273,7 +300,7 @@ export class AudioEngine {
               .catch(() => undefined)
           : undefined;
         // The listener may have started something while the book was loading.
-        if (this.state.status !== 'idle') return;
+        if (generation !== this.generation || this.state.status !== 'idle') return;
         if (!last || !book) {
           this.emit();
           return;
@@ -296,8 +323,31 @@ export class AudioEngine {
   }
 
   /** Save now. Call when the tab is hidden or the page is going away. */
-  flush(): void {
-    this.save();
+  flush(): Promise<void> {
+    return this.save();
+  }
+
+  /**
+   * The saved places are changing hands (sign-out): unload without saving and forget the
+   * cache. Call `refreshProgress()` once the new ones are in place.
+   */
+  reset(): void {
+    this.generation += 1;
+    this.clearSleep();
+    this.switching = true;
+    this.audio?.pause();
+    this.switching = false;
+    this.trackIndex = -1;
+    this.pendingOffset = null;
+    this.clearedFor = null;
+    this.newer = null;
+    this.restartFor = null;
+    this.finishReportedFor = null;
+    this.progress.clear();
+    this.progressVersion++;
+    // IDLE_STATE directly: a reset applies from any status. setState stops the save timer.
+    this.setState(IDLE_STATE);
+    this.pausedAt = undefined;
   }
 
   dispose(): void {
@@ -341,7 +391,7 @@ export class AudioEngine {
       sleep: null,
     });
     this.loadAt(startAt, true);
-    this.save();
+    void this.save();
   }
 
   /** Play, pressed by the listener. Like any manual play or pause, it cancels the sleep timer. */
@@ -385,7 +435,7 @@ export class AudioEngine {
     this.reportFinishIfDue(); // still playing here: pausing inside the last 30 s counts
     this.dispatch('PAUSE');
     this.audio?.pause();
-    this.save();
+    void this.save();
   }
 
   toggle(): void {
@@ -418,7 +468,7 @@ export class AudioEngine {
     } else if (this.trackIndex !== -1 || wantsToPlay(this.state.status)) {
       this.loadAt(target, wantsToPlay(this.state.status));
     }
-    this.save();
+    void this.save();
   }
 
   /** Back by `seconds`, or by the interval in Settings. */
@@ -474,7 +524,7 @@ export class AudioEngine {
     const normalized = normalizeSpeed(speed);
     if (this.audio) this.audio.playbackRate = normalized;
     this.setState({ ...this.state, speed: normalized });
-    this.save();
+    void this.save();
   }
 
   /** Unload the current book (it was removed, or the listener closed the player). */
@@ -509,7 +559,7 @@ export class AudioEngine {
       if (wantsToPlay(this.state.status)) {
         this.reportFinishIfDue();
         this.dispatch('PAUSE');
-        this.save();
+        void this.save();
       }
     },
     timeupdate: () => {
@@ -523,7 +573,7 @@ export class AudioEngine {
     error: () => {
       if (this.switching || this.state.status === 'idle') return;
       this.dispatch('FAILED');
-      this.save();
+      void this.save();
     },
   };
 
@@ -612,13 +662,13 @@ export class AudioEngine {
       this.loadAt(start, wantsToPlay(status) && !stop);
       if (stop) {
         this.dispatch('PAUSE');
-        this.save();
+        void this.save();
       }
       return;
     }
     this.setPosition(this.state.duration);
     this.dispatch('ENDED');
-    this.save();
+    void this.save();
   }
 
   // ── Chapters and leaving a book ──────────────────────────────────────────────
@@ -645,7 +695,14 @@ export class AudioEngine {
   /** Save the current book as the listener leaves it (another book starts, or it is closed). */
   private leaveBook(): void {
     if (wantsToPlay(this.state.status)) this.pausedAt = this.options.now();
-    this.save(true, true);
+    void this.save(true, true);
+    const newer = this.newer;
+    this.newer = null;
+    const cached = newer && this.progress.get(newer.bookId);
+    if (newer && cached && newer.updatedAt > cached.updatedAt) {
+      this.progress.set(newer.bookId, newer);
+      this.progressVersion++;
+    }
   }
 
   // ── State ────────────────────────────────────────────────────────────────────
@@ -664,7 +721,7 @@ export class AudioEngine {
     this.setState({ ...this.state, position, chapterIndex });
     // The position was just set on purpose; do not overwrite it from the element's clock,
     // which may still be on the previous track or the pre-seek time.
-    if (chapterChanged && isAdvancing(this.state.status)) this.save(false);
+    if (chapterChanged && isAdvancing(this.state.status)) void this.save(false);
   }
 
   private setState(next: PlayerState): void {
@@ -737,12 +794,12 @@ export class AudioEngine {
         this.switching = true;
         this.audio?.pause();
         this.switching = false;
-        this.save();
+        void this.save();
       }, STALL_TIMEOUT_MS);
     }
 
     if (isAdvancing(status)) {
-      this.saveTimer ??= setInterval(() => this.save(), SAVE_INTERVAL_MS);
+      this.saveTimer ??= setInterval(() => void this.save(), SAVE_INTERVAL_MS);
     } else if (this.saveTimer !== null) {
       clearInterval(this.saveTimer);
       this.saveTimer = null;
@@ -819,14 +876,14 @@ export class AudioEngine {
     };
   }
 
-  private save(sync = true, leaving = false): void {
+  private save(sync = true, leaving = false): Promise<void> {
     if (sync) this.syncPosition();
     this.reportFinishIfDue();
     const { book, position, duration, speed, status } = this.state;
-    if (!book || status === 'idle') return;
+    if (!book || status === 'idle') return Promise.resolve();
     const stopped = leaving || !wantsToPlay(status);
     if (book.id === this.clearedFor) {
-      if (stopped) return; // cleared in the Library: a tab hide must not bring it back
+      if (stopped) return Promise.resolve(); // cleared in the Library: a tab hide must not bring it back
       this.clearedFor = null;
     }
     const pausedAt = stopped ? this.pausedAt : undefined;
@@ -843,14 +900,29 @@ export class AudioEngine {
       ...(pausedAt !== undefined ? { pausedAt } : {}),
       ...(dismissedAt !== undefined ? { dismissedAt } : {}),
     };
+    // Nothing happened since the last save (a paused tab being hidden): leave its time
+    // alone, or sync would treat an old place as the latest one.
+    const previous = this.progress.get(book.id);
+    if (previous && samePlace(previous, record)) return Promise.resolve();
+    this.newer = null;
     this.progress.set(book.id, record);
     this.progressVersion++;
     this.emit();
-    void this.options.store.put(record).catch(() => {
+    return this.options.store.put(record).catch(() => {
       // Storage failures must never interrupt playback; the in-memory copy still serves this session.
     });
   }
 }
+
+const samePlace = (saved: ProgressRecord, next: ProgressRecord) =>
+  saved.position === next.position &&
+  saved.duration === next.duration &&
+  saved.speed === next.speed &&
+  saved.finished === next.finished &&
+  saved.dismissedAt === next.dismissedAt &&
+  (next.pausedAt === undefined
+    ? saved.pausedAt === undefined
+    : next.pausedAt === pauseTimeOf(saved));
 
 /**
  * When a saved book was last paused. Records from before `pausedAt` existed (and from a tab

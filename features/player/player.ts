@@ -4,6 +4,7 @@ import { getLibraryFlagsStore } from '@/features/library/flags/use-library-flags
 import { getLibraryHistoryStore } from '@/features/library/history/use-library-history';
 import { createBrowserChannel, type SettingsChannel } from '@/features/settings/channel';
 import { getSettings, getSettingsStore } from '@/features/settings/use-settings';
+import { getTabOwner } from '@/features/sync/client/tab-owner';
 import { useMemo, useSyncExternalStore } from 'react';
 import { loadPlayerBook } from './data/load-book';
 import { AudioEngine, IDLE_STATE, type PlayerState } from './engine/audio-engine';
@@ -36,7 +37,7 @@ export function getPlayer(): AudioEngine {
   const tabs = createSingleTab(() => engine?.pause());
   const created = new AudioEngine({
     createAudio: () => new Audio(),
-    store: createProgressStore(),
+    store: createProgressStore({ tabOwner: getTabOwner }),
     resolveBook: (bookId) => loadPlayerBook(bookId),
     onPlaybackStart: tabs.announce,
     settings: getSettings,
@@ -60,9 +61,9 @@ export function getPlayer(): AudioEngine {
   // "Saved … on tab hide and page unload" (PRD). pagehide also covers iOS, where
   // beforeunload is unreliable.
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'hidden') created.flush();
+    if (document.visibilityState === 'hidden') void created.flush();
   });
-  window.addEventListener('pagehide', () => created.flush());
+  window.addEventListener('pagehide', () => void created.flush());
 
   // Another tab changed the library (or removed a Continue listening card): re-read progress.
   libraryChannel = createBrowserChannel('audioshelf-library', 'audioshelf:library-ping');

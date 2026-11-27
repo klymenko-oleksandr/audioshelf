@@ -1,4 +1,5 @@
 import type { SettingsChannel } from '@/features/settings/channel';
+import { historyChange, queueChange, trackedTables } from '@/features/sync/client/outbox';
 import type { LocalDb } from '@/lib/local-db/db';
 import { getDeviceId } from '@/lib/local-db/device';
 import type { HistoryRecord } from '@/lib/local-db/types';
@@ -39,10 +40,11 @@ export function createDexieHistoryRepo(
     remove: (bookId) => history.remove(bookId),
     async backfill(places) {
       const deviceId = await getDeviceId(db);
-      return db.transaction('rw', db.history, db.meta, async () => {
+      return db.transaction('rw', trackedTables(db, db.history), async () => {
         if (await db.meta.get(BACKFILL_KEY)) return 0;
         const rows = planBackfill(places, await db.history.toArray(), deviceId);
         if (rows.length > 0) await db.history.bulkPut(rows);
+        for (const row of rows) await queueChange(db, historyChange(row));
         await db.meta.put({ key: BACKFILL_KEY, value: now() });
         return rows.length;
       });
