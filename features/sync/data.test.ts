@@ -792,6 +792,7 @@ describe('pull paging', () => {
     expect(rest.hasMore).toBe(false);
   });
 
+  // A pull for every cursor value: dozens of queries, over the default 5 s on a CI runner.
   it('the cursor never goes backwards', async () => {
     await seed();
     const end = (await pull(ALICE)).cursor;
@@ -804,7 +805,7 @@ describe('pull paging', () => {
       expect(cursor).toBeGreaterThanOrEqual(last === 0 ? 0 : Math.min(last, since));
       last = cursor;
     }
-  });
+  }, 30_000);
 
   it('a row that changes again shows up again after the cursor (re-reading is harmless)', async () => {
     await push(ALICE, request({ changes: { progress: [progressItem(BOOK, { position: 10 })] } }));
