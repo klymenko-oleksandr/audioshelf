@@ -168,3 +168,54 @@ describe('AccountStore', () => {
     expect(store.getSnapshot().status).toBe('guest');
   });
 });
+
+describe('AccountStore, for sync (6c)', () => {
+  it('does not know the session until it has been read', async () => {
+    const store = new AccountStore(fakeGateway(null).gateway);
+    expect(store.isSessionKnown()).toBe(false);
+    await store.load();
+    expect(store.isSessionKnown()).toBe(true);
+  });
+
+  it('shows a guest after a failed read, without calling it a sign-out', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const { gateway, emit } = fakeGateway(sasha);
+    gateway.loadUser = vi.fn(async () => {
+      throw new Error('offline');
+    });
+    const store = new AccountStore(gateway);
+    await store.load();
+    expect(store.getSnapshot().status).toBe('guest');
+    expect(store.isSessionKnown()).toBe(false);
+
+    const listener = vi.fn();
+    store.subscribe(listener);
+    emit(null);
+    expect(store.isSessionKnown()).toBe(true);
+    expect(listener).toHaveBeenCalledTimes(1);
+  });
+
+  it('is never certain without sign-in configured', async () => {
+    const store = new AccountStore(null);
+    await store.load();
+    expect(store.isSessionKnown()).toBe(false);
+  });
+
+  it('runs the sign-out tasks while the session is still there', async () => {
+    const { gateway } = fakeGateway(sasha);
+    const store = new AccountStore(gateway);
+    await store.load();
+    const order: string[] = [];
+    vi.mocked(gateway.signOut).mockImplementation(async () => void order.push('signOut'));
+    const stop = store.onBeforeSignOut(async () => {
+      order.push(`task ${store.getSnapshot().status}`);
+    });
+    store.onBeforeSignOut(async () => {
+      throw new Error('a failing task does not stop the sign-out');
+    });
+    await store.signOut();
+    expect(order).toEqual(['task signedIn', 'signOut']);
+    expect(store.getSnapshot().status).toBe('guest');
+    stop();
+  });
+});

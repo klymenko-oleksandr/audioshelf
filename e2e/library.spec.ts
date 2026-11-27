@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { savedCount, waitForSaved } from './saved';
+import { savedCount, waitForLive, waitForSaved } from './saved';
 
 // Read-only: Liked, Listen later and History live in the browser (IndexedDB); nothing is
 // written to the server. Every test gets a fresh browser context, so it starts empty.
@@ -103,6 +103,8 @@ test.describe('Library', () => {
     await toastOf(page).getByRole('button', { name: 'Undo' }).click();
     await expect(bookLink(page, 'Три тони')).toBeVisible();
     await expect(count(page, 'liked')).toHaveText('1');
+    // The screen changes before the write lands; a reload right now could cut it off.
+    await waitForLive(page, 'likes', 1);
 
     await page.reload();
     await expect(bookLink(page, 'Три тони')).toBeVisible();

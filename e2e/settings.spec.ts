@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { waitForSaved } from './saved';
 
 // Read-only: settings live in the browser (IndexedDB), nothing is written to the server.
 test.use({ locale: 'en-US', viewport: { width: 1280, height: 900 } });
@@ -59,6 +60,8 @@ test.describe('settings', () => {
     const rewind = page.getByRole('switch', { name: 'Auto-rewind on resume' });
     await rewind.click();
     await expect(rewind).not.toBeChecked();
+    // The screen changes before the write lands; a reload right now could cut it off.
+    await waitForSaved(page, 'settings', 2);
     await page.reload();
     await expect(
       page.getByRole('radiogroup', { name: 'Skip back' }).getByRole('radio', { name: '30 s' }),

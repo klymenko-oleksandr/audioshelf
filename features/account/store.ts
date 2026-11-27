@@ -2,7 +2,7 @@ import { accountFromUser, type Account, type AuthUser } from './account';
 
 /** What the store needs from the auth service (Supabase in the app, a fake in tests). */
 export interface AuthGateway {
-  /** The signed-in user from the stored session, or `null`. */
+  /** The signed-in user from the stored session, or `null`. Throws when it cannot be read. */
   loadUser(): Promise<AuthUser | null>;
   /** Called when the session changes (sign-in, sign-out, a refresh, another tab). */
   onChange(callback: (user: AuthUser | null) => void): () => void;
@@ -42,6 +42,9 @@ export class AccountStore {
   private readonly listeners = new Set<() => void>();
   private stop: (() => void) | undefined;
   private loading: Promise<void> | undefined;
+  /** The session could not be read: shown as a guest, but nobody has signed out. */
+  private unread = false;
+  private readonly signOutTasks = new Set<() => Promise<void>>();
   /** The account was already told about the welcome (so it is written once). */
   private welcomeTold = false;
 
@@ -63,6 +66,20 @@ export class AccountStore {
     return () => this.listeners.delete(listener);
   };
 
+  /**
+   * Whether the snapshot comes from a session that was really read. `false` while loading,
+   * after a failed read (offline with an expired token) and without sign-in configured: then
+   * "guest" must not be taken for a sign-out, and nothing of an account may be removed.
+   */
+  isSessionKnown = (): boolean =>
+    this.gateway !== null && this.snapshot.status !== 'loading' && !this.unread;
+
+  /** Work that needs the session, run before it ends (sync sends what is waiting). */
+  onBeforeSignOut(task: () => Promise<void>): () => void {
+    this.signOutTasks.add(task);
+    return () => this.signOutTasks.delete(task);
+  }
+
   /** Reads the session once and then follows changes. Safe to call twice. */
   load(): Promise<void> {
     this.loading ??= this.start();
@@ -81,6 +98,7 @@ export class AccountStore {
 
   async signOut(): Promise<void> {
     if (!this.gateway) return;
+    await Promise.allSettled([...this.signOutTasks].map((task) => task()));
     try {
       await this.gateway.signOut();
     } catch (error) {
@@ -88,6 +106,7 @@ export class AccountStore {
     }
     // Whatever the server said, this browser is a guest now.
     this.welcomeTold = false;
+    this.unread = false;
     this.set({ status: 'guest', account: null, available: true });
   }
 
@@ -118,13 +137,25 @@ export class AccountStore {
   private async start(): Promise<void> {
     const gateway = this.gateway;
     if (!gateway) return;
-    this.stop = gateway.onChange((user) => this.apply(user));
+    this.stop = gateway.onChange((user) => this.read(user));
     try {
-      this.apply(await gateway.loadUser());
+      this.read(await gateway.loadUser());
     } catch (error) {
       console.warn('Could not read the session.', error);
-      if (this.snapshot.status === 'loading') this.apply(null);
+      if (this.snapshot.status === 'loading') {
+        this.unread = true;
+        this.apply(null);
+      }
     }
+  }
+
+  /** A session that was really read. */
+  private read(user: AuthUser | null): void {
+    const wasUnread = this.unread;
+    this.unread = false;
+    // A new object, so subscribers hear that "guest" is now a fact.
+    if (wasUnread && !user) this.set({ status: 'guest', account: null, available: true });
+    else this.apply(user);
   }
 
   private apply(user: AuthUser | null): void {

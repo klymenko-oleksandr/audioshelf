@@ -1,3 +1,5 @@
+import type { FlagItem, HistoryItem, ProgressItem, SettingItem } from '@/features/sync/merge';
+
 /**
  * Row shapes of the local-first store (ADR 4). Every row that Phase 6 will sync carries
  * `updatedAt` (ms since epoch, device clock) and `deviceId`; removable rows carry a
@@ -34,7 +36,28 @@ export interface SettingRecord {
   deviceId: string;
 }
 
-/** Device-level facts that are not synced: the device id now, a sync cursor later. */
+/**
+ * One change waiting to be pushed (Phase 6c). One row per changed thing and account, so the
+ * latest state wins. It carries the whole item as it goes on the wire: after a sign-out the
+ * account's data leaves this browser's tables, and an unsent change must survive that.
+ */
+export type OutboxRecord = {
+  /** The account the change belongs to. */
+  owner: string;
+  /** `progress:<book>`, `flag:<book>:<kind>`, `history:<book>` or `setting:<key>`. */
+  key: string;
+  /** Part of the first sign-in: pushed with `merge: true`. */
+  merge: boolean;
+  /** New on every write, so a 200 only removes what was really sent. */
+  version: string;
+} & (
+  | { kind: 'progress'; item: ProgressItem }
+  | { kind: 'flag'; item: FlagItem }
+  | { kind: 'history'; item: HistoryItem }
+  | { kind: 'setting'; item: SettingItem }
+);
+
+/** Device-level facts that are not synced: the device id, and the sync owner and cursors. */
 export interface MetaRecord {
   key: string;
   value: unknown;
